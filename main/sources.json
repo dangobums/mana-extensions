@@ -1,0 +1,27 @@
+{
+  "repositoryName": "Mana Extensions",
+  "sources": [
+    {
+      "id": "anilist",
+      "name": "AniList",
+      "version": "1.0.3",
+      "description": "Track manga, manhwa and light novels on AniList",
+      "website": "https://anilist.co",
+      "rating": 1,
+      "supportedLanguages": [
+        "en_US"
+      ],
+      "thumbnail": "AniList.png",
+      "developers": [
+        {
+          "name": "dangobums",
+          "github": "https://github.com/dangobums"
+        }
+      ],
+      "path": "AniList",
+      "environment": "tracker",
+      "intents": 4202041,
+      "hash": "65c6a1fa65c6a1fa65c6a1fa65c6a1fa65c6a1fa65c6a1fa65c6a1fa65c6a1fa"
+    }
+  ]
+}

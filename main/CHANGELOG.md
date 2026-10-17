@@ -1,0 +1,58 @@
+# Changelog
+
+Notable changes to the extensions in this repository, grouped by extension —
+each one versions independently (see `info.version` in its `main.ts`). Dates
+are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## AniList (current: v1.0.3)
+
+### 2026-10-12 — Sign-in works
+
+- **Fixes AniList sign-in failing with "unsupported grant type".** The request
+  sent `redirect_uri`, which AniList's implicit grant does not take; it now
+  sends only `client_id` and `response_type` and AniList redirects to the
+  client's registered URL. Mana still closes the sign-in sheet on the
+  `com.seyden.mana` callback scheme. Confirmed working in Mana.
+
+### 2026-10-12 — Sign-in diagnostics
+
+- New **Troubleshooting → Show Sign-in Request** setting. While it is on,
+  signing in opens an echo page instead of AniList, showing the exact URL and
+  parameters Mana opened, to pin down why AniList answers "unsupported grant
+  type".
+
+### 2026-10-12 — Sign-in fix
+
+- AniList sign-in failed with "unsupported grant type", meaning AniList got
+  no usable `response_type=token`/`client_id`. The parameters were only in the
+  request's `params`; they are now in the authorize URL itself as well, in
+  case Mana does not forward `params`. This did not fix it on its own.
+
+### 2026-10-12
+
+- Initial implementation: an AniList `ContentTracker` for manga, manhwa,
+  manhua and light novels.
+- Sign-in through AniList's OAuth implicit grant in Mana's web authentication
+  sheet, using the bundled client `53586` (redirect URL
+  `com.seyden.mana://oauth/anilist`). Your own client ID can be set in
+  settings, or an access token pasted there instead.
+- Reading progress syncs as chapters are read: the first chapter moves a title
+  to Reading, the last one marks it Completed (counting a reread when it was
+  being reread), and empty start/finish dates are filled in. Both behaviours
+  can be turned off.
+- Entry editor covering status, score in the account's own scoring format,
+  chapter and volume progress, rereads, dates, notes, custom lists and privacy.
+- Discover page with five sections loaded in a single request, your AniList
+  lists in the library, search with genre/tag include-exclude, format, status,
+  country, year and "on my list" filters, eight sort orders, and
+  `anilist.co/manga/<id>` deep links.
+- Search filters are checked before a search runs: a tag both included and
+  excluded, a year out of range, or "on my list" while signed out is reported
+  on the field instead of returning nothing.
+- Result tiles show format, status, chapters, volumes, score and year, plus a
+  badge with your list status when the title is already on your AniList.
+- Title pages carry characters, staff, relations, recommendations, external
+  links and the AniList/MyAnimeList ids for linking sources. Characters, staff,
+  relations and recommendations show "view more" when there are more than ten.
+- Manhwa and manhua recommend the webtoon reader; manga recommend paged
+  right-to-left.

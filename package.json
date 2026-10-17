@@ -1,0 +1,43 @@
+{
+  "name": "mana-extensions",
+  "version": "1.0.0",
+  "description": "Trackers and content sources for the Mana app",
+  "homepage": "https://dangobums.github.io/mana-extensions",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dangobums/mana-extensions"
+  },
+  "author": "dangobums",
+  "scripts": {
+    "dev": "mana-dev serve --watch",
+    "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "mana-dev build",
+    "postbuild": "node scripts/build-page.js",
+    "lint": "oxlint src/ lib/ templates/",
+    "lint:fix": "oxlint --fix src/ lib/ templates/",
+    "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify-source.mjs",
+    "new-source": "node scripts/new-source.mjs",
+    "format": "oxfmt src/ lib/ templates/",
+    "format:check": "oxfmt --check src/ lib/ templates/"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "@mana-app/dev": "^0.1.14",
+    "@mana-app/types": "^0.0.27",
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0",
+    "typescript": "^7.0.2"
+  },
+  "mana": {
+    "src": "src/",
+    "out": "dist/",
+    "target": "es2020",
+    "minify": true,
+    "platform": "web",
+    "repositoryName": "Mana Extensions",
+    "brandSource": "AniList"
+  }
+}

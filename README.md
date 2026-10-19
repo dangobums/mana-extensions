@@ -1,4 +1,6 @@
-# Mana Extensions
+<img src="assets/DangoBums.jpg" width="96" height="96" alt="" align="right">
+
+# DangoBums Sources
 
 Trackers and content sources for the [Mana](https://github.com/Mana-iOS/mana-dev) app.
 

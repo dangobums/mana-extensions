@@ -37,7 +37,7 @@
     "target": "es2020",
     "minify": true,
     "platform": "web",
-    "repositoryName": "Mana Extensions",
-    "brandSource": "AniList"
+    "repositoryName": "DangoBums Sources",
+    "thumbnail": "https://dangobums.github.io/mana-extensions/main/assets/DangoBums.jpg"
   }
 }

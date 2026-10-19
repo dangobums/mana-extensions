@@ -290,6 +290,9 @@ function sourceCard(s) {
 const cards = sources.map(sourceCard).join("\n");
 
 const brandIcon = (() => {
+  // The repository avatar (`mana.thumbnail`) wins when its file ships in assets/.
+  const repoIcon = String(pkg.mana?.thumbnail ?? "").split("/").pop() ?? "";
+  if (repoIcon && fs.existsSync(path.join(cwd, "assets", repoIcon))) return `assets/${repoIcon}`;
   const brand = pkg.mana?.brandSource;
   const s = brand ? sources.find(/** @param {any} s */ (s) => s.path === brand) : sources[0];
   if (!s?.thumbnail) return "";

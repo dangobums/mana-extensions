@@ -1,4 +1,6 @@
-export type GraphQLVariables = Record<string, unknown>;
+import { Body, type HttpClient, type JsonValue } from "@mana-app/types";
+
+export type GraphQLVariables = Record<string, JsonValue | undefined>;
 
 type GraphQLError = { message?: string; status?: number };
 
@@ -24,29 +26,36 @@ function describe(errors: readonly GraphQLError[]): string {
     .join("; ");
 }
 
-/**
- * Posts one GraphQL operation. The body is handed to the host as an object so
- * it serialises it as JSON, matching the `content-type` header set here.
- */
+function definedOnly(variables: GraphQLVariables): Record<string, JsonValue> {
+  const result: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(variables)) {
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+/** Posts one GraphQL operation. Unset (`undefined`) variables are left out. */
 export async function graphql<T>(
-  client: NetworkClient,
+  client: HttpClient,
   endpoint: string,
   query: string,
   variables: GraphQLVariables = {},
   token?: string | null,
 ): Promise<T> {
-  const response = await client.post(endpoint, {
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
+  const response = await client.post(
+    endpoint,
+    Body.json({ query: query.trim(), variables: definedOnly(variables) }),
+    {
+      headers: {
+        accept: "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
     },
-    body: { query: query.trim(), variables },
-  });
+  );
 
   let parsed: GraphQLResponse<T>;
   try {
-    parsed = JSON.parse(response.data) as GraphQLResponse<T>;
+    parsed = await response.json<GraphQLResponse<T>>();
   } catch {
     throw new GraphQLRequestError(
       `${endpoint} did not return JSON (HTTP ${response.status})`,

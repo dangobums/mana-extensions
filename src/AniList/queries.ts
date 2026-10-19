@@ -74,23 +74,19 @@ query (
 
 const PERSON_EDGES = `edges { role node { id name { userPreferred } image { medium } } }`;
 
-const staff = (directive = "") =>
-  `staff(perPage: $items, sort: [RELEVANCE, ID]) ${directive} {
+const STAFF = `staff(perPage: $items, sort: [RELEVANCE, ID]) {
     pageInfo { hasNextPage }
     ${PERSON_EDGES}
   }`;
 
-const characters = (directive = "") =>
-  `characters(perPage: $items, sort: [ROLE, RELEVANCE, ID]) ${directive} {
+const CHARACTERS = `characters(perPage: $items, sort: [ROLE, RELEVANCE, ID]) {
     pageInfo { hasNextPage }
     ${PERSON_EDGES}
   }`;
 
-const relations = (directive = "") =>
-  `relations ${directive} { edges { relationType(version: 2) node { ${MEDIA_SUMMARY} } } }`;
+const RELATIONS = `relations { edges { relationType(version: 2) node { ${MEDIA_SUMMARY} } } }`;
 
-const recommendations = (directive = "") =>
-  `recommendations(perPage: $items, sort: [RATING_DESC, ID]) ${directive} {
+const RECOMMENDATIONS = `recommendations(perPage: $items, sort: [RATING_DESC, ID]) {
     pageInfo { hasNextPage }
     nodes { mediaRecommendation { ${MEDIA_SUMMARY} } }
   }`;
@@ -107,28 +103,11 @@ query ($id: Int, $withEntry: Boolean!, $items: Int) {
     popularity
     tags { id name rank isAdult isGeneralSpoiler isMediaSpoiler }
     externalLinks { id url site }
-    ${staff()}
-    ${characters()}
-    ${relations()}
-    ${recommendations()}
+    ${STAFF}
+    ${CHARACTERS}
+    ${RELATIONS}
+    ${RECOMMENDATIONS}
     mediaListEntry @include(if: $withEntry) { ${LIST_ENTRY} }
-  }
-}`;
-
-export const CONNECTIONS_QUERY = `
-query (
-  $id: Int
-  $items: Int
-  $staff: Boolean!
-  $characters: Boolean!
-  $relations: Boolean!
-  $recommendations: Boolean!
-) {
-  Media(id: $id, type: MANGA) {
-    ${staff("@include(if: $staff)")}
-    ${characters("@include(if: $characters)")}
-    ${relations("@include(if: $relations)")}
-    ${recommendations("@include(if: $recommendations)")}
   }
 }`;
 

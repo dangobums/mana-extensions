@@ -21,7 +21,6 @@ export const MAL_URL = "https://myanimelist.net";
 
 export const PAGE_SIZE = 30;
 export const DETAIL_ITEMS = 10;
-export const MORE_ITEMS = 50;
 export const MIN_YEAR = 1940;
 
 export const TAG_PREFIX = "tag:";
@@ -396,8 +395,6 @@ export type MediaListPageResponse = {
 };
 
 export type MediaDetailResponse = { Media: MediaDetail };
-
-export type MediaConnectionsResponse = { Media: MediaConnections };
 
 export type HomeResponse = Record<string, MediaPageResponse["Page"] | null | undefined>;
 

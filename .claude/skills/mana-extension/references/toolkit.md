@@ -23,7 +23,9 @@ protected clientOptions(): ClientOptions   // what buildClient receives
 protected sections(): SectionSpec[]        // the home page
 ```
 
-In return it provides the lazy `this.http` client, `this.getJson<T>(path, params)` for
+In return it provides the lazy `this.http` client, `this.imageHttp` (the same options
+without a rate limit, to return from `getCoverTransport`/`getPageTransport`),
+`this.getJson<T>(path, params)` for
 JSON APIs (override `apiBase()` when the server URL is configurable), `getSectionsForPage`,
 `resolvePageSection`, and `this.listResults(request)` for the "view more" short-circuit at
 the top of `search`. Override `resolvePageSection` only when a source has list ids that
@@ -134,20 +136,23 @@ through these.
 ```ts
 buildClient({
   baseUrl,
-  requests,
-  interval,
+  requests, // per intervalMs; 0 disables the limiter
+  intervalMs,
   accept,
   headers,
+  imageHeaders,
   resolutionUrl,
   originFor,
   json,
-  maxRetries,
-  timeout,
+  retry,
+  timeoutMs,
 });
 ```
 
-Applies rate limiting, sets `origin`/`referer`/`accept`/`accept-language`, and installs a
-response interceptor that throws `CloudflareError(resolutionUrl)` on 403/503 or a challenge
+Returns an `HttpClient`. Applies rate limiting, sets `origin`/`referer`/`accept-language`
+on every request, `accept` plus `headers` on `RequestOrigin.General` requests and
+`imageHeaders` (an image `accept` by default) on cover/page requests, and installs a
+response interceptor (General requests only, so image bodies stay native) that throws `CloudflareError(resolutionUrl)` on 403/503 or a challenge
 fingerprint (`challenges.cloudflare.com`, `cf-browser-verification`, `__cf_chl_`,
 `<title>Just a moment`, a proof-of-work marker).
 
@@ -156,7 +161,9 @@ fingerprint (`challenges.cloudflare.com`, `cf-browser-verification`, `__cf_chl_`
 - `json: true` — sets a JSON `accept` and turns a `>= 400` response into an `Error`
   carrying the server's own `error.message` when it sends one.
 
-Per-request `headers` passed to `http.request` win over the client defaults.
+Headers are only filled in when missing, so per-request `headers` win over these defaults.
+Error statuses no longer reject on their own: `getText` calls `requireOk()`, and `getJson`
+relies on `json: true` to turn `>= 400` into an `Error`.
 
 ## `lib/html.ts` — parsing helpers
 
@@ -190,14 +197,19 @@ site. An invalid `Date` fails the contract test and renders as a broken date in 
 
 ## `lib/graphql.ts` and `lib/tracker.ts` — trackers and GraphQL APIs
 
-`graphql<T>(client, endpoint, query, variables?, token?)` posts one operation with a JSON
-body and bearer token, returns `data` typed as `T`, and throws `GraphQLRequestError` with the
+`graphql<T>(client, endpoint, query, variables?, token?)` posts one operation as
+`Body.json(...)` with a bearer token through an `HttpClient`, returns `data` typed as `T`, and throws `GraphQLRequestError` with the
 server's `errors[].message` when there is no data. Use it with a `json: true` client.
 
 `TokenStore(namespace)` keeps an OAuth access token and its expiry in `SecureStore` under
 `<namespace>.access_token` / `<namespace>.expires_at`: `get()` (null when missing or expired,
 clearing it), `save(token, expiresInSeconds?)`, `clear()`. The contract test seeds
 `<info.id>.access_token` from the probe's `tokenEnv`, so keep the namespace equal to `info.id`.
+
+`oauthRequest(url, params, redirectUri, { sendRedirectUri? })` returns the `OAuthURL` for
+`getOAuthRequestURL`, with the query in both `url` and `params` and `callbackScheme` taken from
+the redirect. `retryRateLimited(maxRetries = 2)` is a `RetryPolicy` that also retries POSTs
+answered with 429 — pass it as `retry` in `clientOptions()` for GraphQL APIs.
 
 Also: `defaultStatus(options)`, `isKnownStatus(options, id)`, `numericId(id, label)` (strict
 integer id parsing with a readable error), `plainText(html)` (descriptions), and

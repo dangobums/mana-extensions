@@ -1,8 +1,9 @@
 # The `@mana-app/types` surface and the runtime that consumes it
 
-Verified against `@mana-app/types@0.0.27` and `@mana-app/dev@0.1.14` by reading the
-type declarations and the runtime embedded in `mana-dev`. The intent table below is
-unchanged from `@mana-app/dev@0.1.13` — 0.1.14 is a rebuild with no change to detection.
+Verified against `@mana-app/types@0.1.1` and `@mana-app/dev@0.2.0` by reading the
+type declarations and the runtime embedded in `mana-dev`. 0.2.0 retired bit 2
+(`willRequestImage`) and added bits 25/26 for image transports; the other bits and the
+tracker detection (`environment: "tracker"`) are unchanged from 0.1.14.
 
 ## How the app decides what your source can do
 
@@ -15,7 +16,7 @@ normally; a method that does not exist is a feature that does not exist.
 | --- | --------------------------------------- | -------------------------------------------------------------------------- |
 | 0   | `preferenceMenuBuilder`                 | `getPreferenceMenu`                                                        |
 | 1   | `requiresSetup`                         | `getSetupMenu` **and** `validateSetupForm` **and** `isRunnerSetup`         |
-| 2   | `imageRequestHandler`                   | `willRequestImage`                                                         |
+| 2   | _retired_ (was `imageRequestHandler`)   | nothing — `willRequestImage` was removed in 0.1.0                          |
 | 3   | `pageLinkResolver`                      | `getSectionsForPage` **and** `resolvePageSection`                          |
 | 4   | `libraryPageLinkProvider`               | `getLibraryPageLinks`                                                      |
 | 5   | `authenticatable`                       | `getAuthenticatedUser` + `handleUserSignOut` **and** one flavour below     |
@@ -38,6 +39,8 @@ normally; a method that does not exist is a feature that does not exist.
 | 22  | `canHandleURL`                          | `handleURL`                                                                |
 | 23  | `allowsMultipleInstances`               | `config.allowsMultipleInstances`                                           |
 | 24  | `requiresAuthenticationToAccessContent` | `config.requiresAuthenticationToAccessContent`                             |
+| 25  | `coverTransport`                        | `getCoverTransport`                                                        |
+| 26  | `pageTransport`                         | `getPageTransport`                                                         |
 
 Check your own build with:
 
@@ -56,9 +59,11 @@ Two traps worth calling out:
 - **Bit 7.** The runtime checks `target.BasicAuthenticationUIIdentifier === EMAIL`, but
   `BasicAuthenticatable` in the `.d.ts` declares `BasicAuthUIIdentifier`. Setting only the typed
   name means the login screen always asks for a username. Define both for email login.
-- **OAuth.** `getOAuthRequestURL` is typed `BasicURL`, but Mana also reads `callbackScheme`
-  and needs `params.redirect_uri`; see `references/tracker.md` and `oauthRequest` in
-  `lib/tracker.ts`.
+- **OAuth.** `getOAuthRequestURL` returns `OAuthURL` (0.1.0): `BasicURL` plus a required
+  `callbackScheme` — the callback URL's scheme only. See `references/tracker.md` and
+  `oauthRequest` in `lib/tracker.ts`.
+- **`getAdditionalInfoSectionItems`** is still typed but "currently unused: the app does not
+  call this method" (0.1.1). Do not set `hasMore: true` on additional-info sections.
 
 ## Which interface to implement
 
@@ -84,10 +89,11 @@ The source runs in a bare V8 / JavaScriptCore context, not Node and not a browse
   bundler-injected shim.
 - **`console` may not exist.** Do not rely on logging. A thrown `Error` message is the only
   diagnostic channel guaranteed to reach the user, so put real detail in it.
-- **`NetworkResponse.data` is always a `string`.** It is UTF-8 text by default, and a
-  non-UTF-8 body may not survive the bridge at all. As of 0.0.27 a request can set
-  `responseEncoding: "base64"` to get the raw bytes back base64-encoded instead — use that
-  for images and archives. An app built before 0.0.27 ignores the field.
+- **Response bodies are read asynchronously.** `HttpResponse` has `text()`, `json<T>()`,
+  `bytes()`, `arrayBuffer()` and `base64()`; each is repeatable. `base64()`/`bytes()` use the
+  original bytes, so use them for images and archives. `json<T>()` types but does not validate.
+- **HTTP error statuses resolve, they do not reject.** Call `response.requireOk()` (throws
+  `HttpStatusError`) or branch on `response.status`. `getText`/`fetchHtml` already call it.
 - **`onEnvironmentLoaded` is not awaited.** The runtime calls
   `target.onEnvironmentLoaded?.().catch(...)` and moves on, so anything it assigns can still
   be undefined when the first real method runs. Build the client lazily instead.
@@ -95,8 +101,25 @@ The source runs in a bare V8 / JavaScriptCore context, not Node and not a browse
   `globalThis.Target = __exports__.Target`; a source directory without one fails the build
   with `No Target class found in self-contained bundle`.
 
-Host globals available: `NetworkClient`, `NetworkClientBuilder` (imported from the types
-package), `CloudflareError`, `NetworkError`, `ObjectStore`, `SecureStore`, `WebViewPage`.
+Host globals available: `ObjectStore`, `SecureStore`, `WebViewPage`. Networking is imported
+from `@mana-app/types` and bundled: `HttpClient`, `Body`, `HttpMethod`, `RequestOrigin`,
+`CloudflareError`, `NetworkError`, `TimeoutError`, `AbortError`, `HttpStatusError`.
+`CloudflareError` is no longer a global — import it.
+
+## Networking (`@mana-app/types` 0.1.0)
+
+- Body-taking helpers are `(url, body, options)`: `http.post(url, Body.form({...}), { headers })`.
+  Pick the serialization with `Body.json/form/text/bytes`; each sets its content type.
+- `request()` takes `{ url, method: HttpMethod.Post, body }` and options as a second argument.
+- Interceptors get `(request, context)`. Mutate `request.headers` (an `HttpHeaders`: lowercase
+  property access, or case-insensitive `get/set/has/delete`) instead of replacing it.
+  `context.origin` is `RequestOrigin.General`, `Cover` or `Page`.
+- Images: implement `getCoverTransport(request)` / `getPageTransport(request)` (synchronous)
+  and return an existing `HttpClient`. Its interceptors, limiter and retries then apply to
+  images. Implementing neither leaves images on the native loader. `BaseSource.imageHttp`
+  is the client to return: same headers, no rate limit.
+- Rate limits are `setRateLimit(requests, intervalMs)` — milliseconds. Defaults: no limiter,
+  zero retries, 30 s total deadline.
 
 **`ObjectStore`/`SecureStore` typed accessors throw on a type mismatch.** `set(k, v)` takes
 any value and stores it natively; `string()`, `boolean()`, `number()` and `stringArray()`

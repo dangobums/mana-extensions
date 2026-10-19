@@ -1,6 +1,6 @@
 # Trackers (`ContentTracker`)
 
-Verified against `@mana-app/types@0.0.27` and the runtime embedded in `@mana-app/dev@0.1.14`.
+Verified against `@mana-app/types@0.1.1` and the runtime embedded in `@mana-app/dev@0.2.0`.
 `src/AniList/` is the reference implementation; `templates/tracker/` is the starting point
 (`bun run new-source <Name> --id <id> --url <https://site> --tracker`).
 
@@ -81,7 +81,7 @@ Trackers are almost always OAuth. The intent needs `getAuthenticatedUser` + `han
 plus `getOAuthRequestURL` + `handleOAuthCallback`:
 
 ```ts
-async getOAuthRequestURL(): Promise<OAuthRequest> {      // lib/tracker.ts
+async getOAuthRequestURL(): Promise<OAuthURL> {          // lib/tracker.ts
   return oauthRequest(AUTHORIZE_URL, { client_id, response_type: "token" }, REDIRECT_URL);
   // → { url, params: { client_id, response_type, redirect_uri }, callbackScheme: "com.seyden.mana" }
 }
@@ -102,10 +102,9 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
   `unsupported_grant_type`; without it (`?client_id=…&response_type=token`, as in AniList's docs
   and Komikku) it works and Mana closes the sheet on `com.seyden.mana://oauth/anilist`. If a new
   tracker's sign-in fails, the AniList **Show Sign-in Request** setting shows how to echo the exact
-  URL Mana opens. `callbackScheme` is not on `BasicURL` in
-  `@mana-app/types@0.0.27`, so returning a plain object literal typed `BasicURL` fails typecheck
-  and dropping the field leaves the sheet open after the provider redirects. The full redirect URL
-  then reaches `handleOAuthCallback`. Register one path
+  URL Mana opens. Since 0.1.0 the return type is `OAuthURL` (`BasicURL` plus a required
+  `callbackScheme`: the scheme only, no `://`), so leaving it out fails typecheck instead of
+  leaving the sheet open. The full redirect URL then reaches `handleOAuthCallback`. Register one path
   per tracker on the service's client (AniList uses `com.seyden.mana://oauth/anilist`) and put it
   in the extension's README and settings footer, because users register their own clients.
 - Keep tokens in `SecureStore` through `TokenStore` (`lib/tracker.ts`). It stores the expiry as
@@ -128,6 +127,9 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
   `this.listResults(request)` and return the user's list with `Highlight.entry` filled.
 - Home sections come from `BaseSource.sections()` exactly as for content sources. Use one page
   size for every page of a listing, or "view more" skips the items between the two sizes.
+- **Rate limits on POST APIs.** `HttpClient` retries only GET/HEAD by default, and a GraphQL API
+  answers everything with POST. Pass `retry: retryRateLimited()` (`lib/tracker.ts`) in
+  `clientOptions()` so a 429 is retried after the server's `Retry-After`.
 
 ## Home page and title pages
 
@@ -136,10 +138,10 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
   every section in one aliased query (`homeQuery` in `src/AniList/queries.ts`) and falls back to
   the plain sections if that request fails, so the app resolves them one by one instead. Keep
   `resolvePageSection` working: "view more" and the fallback both use it.
-- **"View more" on title pages.** The app stores only ten items per additional-info section.
-  Set `hasMore: true` only when there really are more (the service's `pageInfo.hasNextPage`, or
-  fetching one extra item), and implement `getAdditionalInfoSectionItems(contentId, sectionId)`
-  to return the full list for that section id. Return `[]` for sections without more (links).
+- **No "view more" on title pages yet.** The app stores only ten items per additional-info
+  section, and as of 0.1.1 `getAdditionalInfoSectionItems` is documented as "Currently unused:
+  the app does not call this method". Send at most ten items with `hasMore: false`; a `true`
+  would offer a "view more" that cannot load anything.
 - **`Highlight.info: Pair[]`** shows key/value details on a tile, and **`badge: { text }`** a short
   label — AniList uses it for the user's list status in browse results, never on the user's own
   list pages where every tile has the same status.
@@ -155,18 +157,19 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
 await graphql<T>(this.http, API_URL, QUERY, variables, token);
 ```
 
-The body goes to the host as an object with `content-type: application/json`, which the app
-serialises as JSON (the harness mirrors that). Build the client with `json: true`: a JSON API's
-403 is then treated as an API error rather than Cloudflare (only a challenge-page body counts),
-and `errors[].message` from a 4xx body becomes the thrown error's message. Use `@include(if:)`
-to skip user-specific fields when signed out, and to reuse one query for several "view more"
-sections. In inline arguments, GraphQL enums (`sort`, `status`) go in bare, but AniList's
+It sends `Body.json({ query, variables })` (unset `undefined` variables are dropped) and reads the
+reply with `response.json()`. Build the client with `json: true`: a JSON API's 403 is then
+treated as an API error rather than Cloudflare (only a challenge-page body counts), and
+`errors[].message` from a 4xx body becomes the thrown error's message — `HttpClient` itself
+resolves on error statuses, so without `json: true` nothing would throw. Use `@include(if:)` to
+skip user-specific fields when signed out. In inline arguments, GraphQL enums (`sort`, `status`) go in bare, but AniList's
 `CountryCode` is a string scalar and must be quoted.
 
 ## Verifying
 
 `bun run verify <Name>` detects a tracker and adds `getStatusOptions`, `getOAuthRequestURL`
-(must carry `redirect_uri` under its `callbackScheme`), a signed-out
+(must carry `callbackScheme`, a `redirect_uri` under that scheme if any, and every param in the
+URL too), a signed-out
 `getTrackEntry` (must be `null`) and `handleURL` (probe `url`). With a token in the env var the
 probe's `tokenEnv` names, it also runs `getAuthenticatedUser`, `getTrackEntry`, `getEntryForm`
 and the first library list. It never calls a method that writes to the account — test the write

@@ -4,7 +4,20 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## AniList (current: v1.0.3)
+## AniList (current: v1.1.0)
+
+### 2026-10-19 — @mana-app/types 0.1.1
+
+- Rebuilt with `@mana-app/types` 0.1.1 and `@mana-app/dev` 0.2.0. Requests go
+  through the new `HttpClient`; GraphQL calls send `Body.json` and read the
+  reply asynchronously, and API errors are still reported with AniList's own
+  message.
+- A rate-limited request (HTTP 429) is now retried after AniList's
+  `Retry-After` instead of failing. The new client only retries GET by default,
+  and every AniList call is a POST.
+- Sign-in returns the new `OAuthURL` type; the request itself is unchanged.
+- Characters, staff, relations and recommendations no longer offer "view
+  more": Mana does not call the method that would load the rest yet.
 
 ### 2026-10-12 — Sign-in works
 

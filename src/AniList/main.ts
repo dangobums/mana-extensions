@@ -16,7 +16,6 @@ import {
   UIToggle,
   additionalInfo,
   type AdditionalInfoSection,
-  type AdditionalInfoSectionItem,
   type CharacterItem,
   type Content,
   type ContentTracker,
@@ -25,6 +24,7 @@ import {
   type Form,
   type Highlight,
   type OAuthAuthenticatable,
+  type OAuthURL,
   type Option,
   type PageLink,
   type PageLinkLabel,
@@ -73,7 +73,7 @@ import {
   numericId,
   oauthRequest,
   plainText,
-  type OAuthRequest,
+  retryRateLimited,
 } from "../../lib/tracker.ts";
 import {
   ADULT_GENRES,
@@ -94,7 +94,6 @@ import {
   MAL_URL,
   MEDIA_STATUS_OPTIONS,
   MIN_YEAR,
-  MORE_ITEMS,
   PAGE_SIZE,
   PIN_REDIRECT_URL,
   REDIRECT_URL,
@@ -115,7 +114,6 @@ import {
   type FuzzyDate,
   type HomeResponse,
   type MediaConnections,
-  type MediaConnectionsResponse,
   type MediaDetail,
   type MediaDetailResponse,
   type MediaEntryResponse,
@@ -132,7 +130,6 @@ import {
   type ViewerResponse,
 } from "./model.ts";
 import {
-  CONNECTIONS_QUERY,
   DELETE_ENTRY_MUTATION,
   ENTRY_QUERY,
   MEDIA_LIST_QUERY,
@@ -148,7 +145,7 @@ import {
 const info: SourceInfo = {
   id: "anilist",
   name: "AniList",
-  version: "1.0.3",
+  version: "1.1.0",
   description: "Track manga, manhwa and light novels on AniList",
   website: SITE_URL,
   rating: CatalogRating.MIXED,
@@ -189,7 +186,13 @@ class AniListTracker
   private tagCache: Option[] | undefined;
 
   protected clientOptions(): ClientOptions {
-    return { baseUrl: SITE_URL, json: true, requests: 1, interval: 1 };
+    return {
+      baseUrl: SITE_URL,
+      json: true,
+      requests: 1,
+      intervalMs: 1_000,
+      retry: retryRateLimited(),
+    };
   }
 
   protected sections(): SectionSpec[] {
@@ -356,31 +359,6 @@ class AniListTracker
     return parseContent(Media, display);
   }
 
-  async getAdditionalInfoSectionItems(
-    contentId: string,
-    sectionId: string,
-  ): Promise<AdditionalInfoSectionItem[]> {
-    const wanted = {
-      staff: sectionId === InfoSectionID.Staff,
-      characters: sectionId === InfoSectionID.Characters,
-      relations: sectionId === InfoSectionID.Relations,
-      recommendations: sectionId === InfoSectionID.Recommendations,
-    };
-    if (!Object.values(wanted).some(Boolean)) return [];
-
-    const display = await this.display();
-    const { Media } = await this.query<MediaConnectionsResponse>(CONNECTIONS_QUERY, {
-      id: numericId(contentId, "AniList id"),
-      items: MORE_ITEMS,
-      ...wanted,
-    });
-
-    if (wanted.staff) return staffItems(Media.staff);
-    if (wanted.characters) return characterItems(Media.characters);
-    if (wanted.relations) return relationItems(Media, display, MORE_ITEMS);
-    return recommendationItems(Media, display, MORE_ITEMS);
-  }
-
   async validateSearchForm(form: SearchFormSubmission): Promise<SearchFormValidationResult> {
     const filters = new FilterReader(form);
     const fieldErrors: Record<string, string> = {};
@@ -499,7 +477,7 @@ class AniListTracker
     this.viewerCache = undefined;
   }
 
-  async getOAuthRequestURL(): Promise<OAuthRequest> {
+  async getOAuthRequestURL(): Promise<OAuthURL> {
     const clientId = (await this.preferences.get(PreferenceID.ClientId)).trim() || CLIENT_ID;
     const diagnostics = await this.preferences.get(PreferenceID.SignInDiagnostics);
     return oauthRequest(
@@ -950,7 +928,7 @@ function infoSections(media: MediaDetail, display: Display): AdditionalInfoSecti
       additionalInfo.characters.section({
         id: InfoSectionID.Characters,
         title: "Characters",
-        hasMore: Boolean(media.characters?.pageInfo?.hasNextPage),
+        hasMore: false,
         items: characters,
       }),
     );
@@ -962,20 +940,20 @@ function infoSections(media: MediaDetail, display: Display): AdditionalInfoSecti
       additionalInfo.staff.section({
         id: InfoSectionID.Staff,
         title: "Staff",
-        hasMore: Boolean(media.staff?.pageInfo?.hasNextPage),
+        hasMore: false,
         items: staff,
       }),
     );
   }
 
-  const relations = relationItems(media, display, DETAIL_ITEMS + 1);
+  const relations = relationItems(media, display, DETAIL_ITEMS);
   if (relations.length > 0) {
     sections.push(
       additionalInfo.highlights.section({
         id: InfoSectionID.Relations,
         title: "Relations",
-        hasMore: relations.length > DETAIL_ITEMS,
-        items: relations.slice(0, DETAIL_ITEMS),
+        hasMore: false,
+        items: relations,
       }),
     );
   }
@@ -986,7 +964,7 @@ function infoSections(media: MediaDetail, display: Display): AdditionalInfoSecti
       additionalInfo.highlights.section({
         id: InfoSectionID.Recommendations,
         title: "Recommendations",
-        hasMore: Boolean(media.recommendations?.pageInfo?.hasNextPage),
+        hasMore: false,
         items: recommendations,
       }),
     );

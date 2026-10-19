@@ -1,12 +1,10 @@
-import type { BasicURL, TrackerStatusOption } from "@mana-app/types";
+import {
+  OutcomeKind,
+  type OAuthURL,
+  type RetryPolicy,
+  type TrackerStatusOption,
+} from "@mana-app/types";
 import { withQuery } from "./forms/query.ts";
-
-/**
- * Mana opens OAuth sign-in in an ASWebAuthenticationSession and finishes when
- * the provider redirects to `callbackScheme`. The field is read by the app but
- * is not declared on `BasicURL` as of @mana-app/types 0.0.27.
- */
-export type OAuthRequest = BasicURL & { callbackScheme: string };
 
 export type OAuthRequestOptions = {
   /**
@@ -26,7 +24,7 @@ export function oauthRequest(
   params: Record<string, string>,
   redirectUri: string,
   options: OAuthRequestOptions = {},
-): OAuthRequest {
+): OAuthURL {
   const callbackScheme = /^([a-z][a-z0-9+.-]*):/i.exec(redirectUri)?.[1];
   if (!callbackScheme) throw new Error(`"${redirectUri}" is not a redirect URL with a scheme`);
   const query =
@@ -118,4 +116,16 @@ export function plainText(html: string | null | undefined): string {
     .replace(/&amp;/g, "&")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * The client only retries GET and HEAD by default. Tracker APIs that answer
+ * every call with POST (GraphQL) still want a rate-limited request repeated;
+ * the wait follows the server's `Retry-After`.
+ */
+export function retryRateLimited(maxRetries = 2): RetryPolicy {
+  return {
+    maxRetries,
+    shouldRetry: ({ outcome }) => outcome.kind === OutcomeKind.Response && outcome.status === 429,
+  };
 }

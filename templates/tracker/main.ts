@@ -1,5 +1,7 @@
 import {
+  Body,
   CatalogRating,
+  HttpMethod,
   ContentRating,
   SectionStyle,
   UIListSection,
@@ -9,6 +11,8 @@ import {
   type ContentTracker,
   type Form,
   type Highlight,
+  type JsonValue,
+  type OAuthURL,
   type OAuthAuthenticatable,
   type PagedSearchResult,
   type SearchRequest,
@@ -39,7 +43,6 @@ import {
   numericId,
   oauthRequest,
   plainText,
-  type OAuthRequest,
 } from "../../lib/tracker.ts";
 import {
   API_URL,
@@ -84,7 +87,7 @@ class TemplateTrackerSource
   private readonly tokens = new TokenStore(info.id);
 
   protected clientOptions(): ClientOptions {
-    return { baseUrl: SITE_URL, json: true, requests: 1, interval: 1 };
+    return { baseUrl: SITE_URL, json: true, requests: 1, intervalMs: 1_000 };
   }
 
   protected sections(): SectionSpec[] {
@@ -149,19 +152,19 @@ class TemplateTrackerSource
   }
 
   async removeTracking(id: string): Promise<void> {
-    await this.send("DELETE", `/me/list/${numericId(id)}`);
+    await this.send(HttpMethod.Delete, `/me/list/${numericId(id)}`);
   }
 
   async didUpdateLastReadChapter(id: string, progress: TrackProgressUpdate): Promise<void> {
     if (progress.chapter === undefined) return;
-    await this.send("PATCH", `/me/list/${numericId(id)}`, {
+    await this.send(HttpMethod.Patch, `/me/list/${numericId(id)}`, {
       progress: Math.floor(progress.chapter),
     });
   }
 
   async didUpdateStatus(id: string, status: string): Promise<void> {
     if (!isKnownStatus(STATUS_OPTIONS, status)) throw new Error(`Unknown status "${status}"`);
-    await this.send("PATCH", `/me/list/${numericId(id)}`, { status });
+    await this.send(HttpMethod.Patch, `/me/list/${numericId(id)}`, { status });
   }
 
   async getEntryForm(id: string): Promise<Form> {
@@ -189,9 +192,9 @@ class TemplateTrackerSource
     };
   }
 
-  async didSubmitEntryForm(id: string, form: Record<string, unknown>): Promise<void> {
+  async didSubmitEntryForm(id: string, form: Record<string, JsonValue>): Promise<void> {
     if (Object.keys(form).length === 0) return;
-    await this.send("PATCH", `/me/list/${numericId(id)}`, form);
+    await this.send(HttpMethod.Patch, `/me/list/${numericId(id)}`, form);
   }
 
   async getAuthenticatedUser(): Promise<User | null> {
@@ -204,7 +207,7 @@ class TemplateTrackerSource
     await this.tokens.clear();
   }
 
-  async getOAuthRequestURL(): Promise<OAuthRequest> {
+  async getOAuthRequestURL(): Promise<OAuthURL> {
     const clientId = (await this.preferences.get(PreferenceID.ClientId)).trim();
     if (!clientId) throw new Error("Add your client ID in the tracker settings first.");
     return oauthRequest(
@@ -233,17 +236,23 @@ class TemplateTrackerSource
     const response = await this.http.get(withQuery(`${API_URL}${path}`, params), {
       headers: await this.headers(),
     });
-    return JSON.parse(response.data) as T;
+    return response.json<T>();
   }
 
-  private async send(method: string, path: string, body?: Record<string, unknown>): Promise<void> {
+  private async send(
+    method: HttpMethod,
+    path: string,
+    body?: Record<string, JsonValue>,
+  ): Promise<void> {
     if ((await this.tokens.get()) === null) throw new Error("Sign in to track titles.");
-    await this.http.request({
-      url: `${API_URL}${path}`,
-      method,
-      headers: { ...(await this.headers()), "content-type": "application/json" },
-      ...(body === undefined ? {} : { body }),
-    });
+    await this.http.request(
+      {
+        url: `${API_URL}${path}`,
+        method,
+        ...(body === undefined ? {} : { body: Body.json(body) }),
+      },
+      { headers: await this.headers() },
+    );
   }
 
   private async results(

@@ -206,6 +206,22 @@ server's `errors[].message` when there is no data. Use it with a `json: true` cl
 clearing it), `save(token, expiresInSeconds?)`, `clear()`. The contract test seeds
 `<info.id>.access_token` from the probe's `tokenEnv`, so keep the namespace equal to `info.id`.
 
+## Self-hosted servers (`src/Komga/` is the reference)
+
+- `ClientOptions.authorize(request, context)` runs on every request, images included, and is
+  awaited — read credentials from the store there and set `x-api-key` / `authorization`. Only
+  add them when `request.url` starts with the configured server, so they never go to another
+  host. `originFor: (url) => originOf(url) ?? fallback` keeps `origin`/`referer` on that server.
+- `basicAuthorization(user, password)` builds the `Basic …` header (the runtime has no `btoa`).
+- `SecretStore(namespace)` (`lib/secrets.ts`) keeps API keys and passwords in `SecureStore`;
+  reads never throw. Render them as `UITextField({ secure: true })` next to the
+  `buildPreferenceMenu` sections, and drop any cached credentials in `didChange`.
+- Return `this.imageHttp` from `getCoverTransport`/`getPageTransport`: it carries the same
+  `authorize`, so covers and pages load signed in. Image requests must not go through
+  `client.get()` in tests — the probe's image check dispatches them as the app does.
+- Probes for these sources take `"store"` / `"secureStore"` maps and `${ENV}` placeholders, so the
+  server URL and key stay out of the repo; a probe with an unset variable is skipped.
+
 `oauthRequest(url, params, redirectUri, { sendRedirectUri? })` returns the `OAuthURL` for
 `getOAuthRequestURL`, with the query in both `url` and `params` and `callbackScheme` taken from
 the redirect. `retryRateLimited(maxRetries = 2)` is a `RetryPolicy` that also retries POSTs

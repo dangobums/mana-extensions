@@ -19,6 +19,7 @@ The page at <https://dangobums.github.io/mana-extensions/main> lists the extensi
 |                                                              | Name    | Type    | Version | Rating |
 | :----------------------------------------------------------: | ------- | ------- | ------- | ------ |
 | <img src="assets/AniList.png" width="28" height="28" alt=""> | AniList | Tracker | 1.1.0   | Mixed  |
+|  <img src="assets/Komga.png" width="28" height="28" alt="">  | Komga   | Source  | 1.0.0   | Mixed  |
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
@@ -43,6 +44,28 @@ To sign in without the in-app flow, use AniList's PIN flow instead:
 3. Approve the client, copy the token AniList shows, and paste it into **Access Token** in the tracker's settings.
 
 Tokens last a year. When one expires or is revoked, the tracker signs out and asks you to sign in again.
+
+## Komga setup
+
+Komga is a source for your own [Komga](https://komga.org) server. In Mana, open the source's
+settings and enter:
+
+1. **Server Address** — the address you open Komga at, e.g. `http://192.168.1.10:25600`
+   (a sub-path such as `https://host/komga` works too).
+2. One way to sign in:
+   - **API key** (recommended) — create one in Komga under *Account Settings → API Keys*.
+   - **Email and password** — in the settings, or from Mana's sign-in screen for the source.
+
+   When both are set, the API key is used. The settings footer shows whether the server is
+   reachable and which account is connected.
+
+Add the source more than once to use several servers. Reading in Mana marks books read in
+Komga and keeps the page you stopped at; progress made in Komga's web reader or other apps
+shows up in Mana. Series whose metadata links to AniList, MangaUpdates, Kitsu, MyAnimeList or
+MangaDex are linked to those trackers automatically.
+
+The Komga source follows the behaviour of the [Keiyoushi Komga extension](https://github.com/keiyoushi/extensions-source/tree/main/src/all/komga)
+(Apache-2.0) for Mihon, reimplemented in TypeScript for Mana.
 
 ## Development
 

@@ -2,6 +2,8 @@ import {
   CloudflareError,
   HttpClient,
   RequestOrigin,
+  encodeUTF8,
+  type Awaitable,
   type HttpRequest,
   type HttpResponse,
   type RequestContext,
@@ -41,6 +43,8 @@ export type ClientOptions = {
   json?: boolean;
   retry?: RetryPolicy;
   timeoutMs?: number;
+  /** Adds credentials to every request, including cover and page images. */
+  authorize?: (request: HttpRequest, context: RequestContext) => Awaitable<void>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -91,13 +95,18 @@ export function buildClient(options: ClientOptions): HttpClient {
     json = false,
     retry,
     timeoutMs,
+    authorize,
   } = options;
 
-  const interceptRequest = (request: HttpRequest, context: RequestContext): HttpRequest => {
+  const interceptRequest = async (
+    request: HttpRequest,
+    context: RequestContext,
+  ): Promise<HttpRequest> => {
     const origin = originFor?.(request.url) ?? baseUrl;
     setMissing(request, { origin, referer: `${origin}/`, "accept-language": ACCEPT_LANGUAGE });
     if (context.origin === RequestOrigin.General) setMissing(request, { accept, ...headers });
     else setMissing(request, imageHeaders);
+    await authorize?.(request, context);
     return request;
   };
 
@@ -130,6 +139,30 @@ export function buildClient(options: ClientOptions): HttpClient {
   if (timeoutMs !== undefined) client.setTimeoutMs(timeoutMs);
 
   return client;
+}
+
+const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** The runtime has neither `btoa` nor `Buffer`, so Basic credentials are encoded here. */
+export function basicAuthorization(username: string, password: string): string {
+  const bytes = encodeUTF8(`${username}:${password}`);
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] ?? 0;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const chunk = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    out += BASE64[(chunk >> 18) & 63];
+    out += BASE64[(chunk >> 12) & 63];
+    out += b === undefined ? "=" : BASE64[(chunk >> 6) & 63];
+    out += c === undefined ? "=" : BASE64[chunk & 63];
+  }
+  return `Basic ${out}`;
+}
+
+/** `scheme://host[:port]` of an absolute URL, or undefined when it has none. */
+export function originOf(url: string): string | undefined {
+  return /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url)?.[1];
 }
 
 const ENCODING_FAILURE = /could not be serialized|unicode \(utf-8\)|invalid.{0,20}utf-?8/i;

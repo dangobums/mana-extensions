@@ -4,6 +4,31 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Komga (current: v1.0.0)
+
+### 2026-10-19
+
+- Initial implementation: a source for your own Komga server (tested against
+  Komga 1.28.1), with any number of servers side by side.
+- Sign in with an API key, or an email and password from the settings or
+  Mana's sign-in screen. Credentials are kept in the keychain and only ever
+  sent to the configured server; the settings show the connection status.
+- Home page with Keep Reading, Recently Added and Recently Updated series and
+  Latest Books; each Komga library is a library link; default libraries can be
+  chosen in the settings.
+- Search across series with library, read status, series status, publisher,
+  tag and genre filters (tags and genres can be excluded) and five sort orders.
+- Series pages with summary, alternate titles, genres, tags, staff and links;
+  series linked from their metadata to AniList, MangaUpdates, Kitsu,
+  MyAnimeList or MangaDex.
+- Books are chapters in number order, titles without the repeated series
+  name; only books Komga can show as images (comics, PDFs, image EPUBs).
+  Covers and pages load through the signed-in client.
+- Reading progress syncs both ways: finishing a book marks it read in Komga,
+  marking chapters read or unread updates Komga, the current page is saved as
+  you read, and Mana picks up what was read elsewhere.
+
+
 ## AniList (current: v1.1.0)
 
 ### 2026-10-19 — @mana-app/types 0.1.1

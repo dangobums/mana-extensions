@@ -1,0 +1,10 @@
+{
+  "query": "${KOMGA_QUERY}",
+  "contentId": "${KOMGA_SERIES_ID}",
+  "store": {
+    "komga.server-url": "${KOMGA_URL}"
+  },
+  "secureStore": {
+    "komga.api-key": "${KOMGA_API_KEY}"
+  }
+}

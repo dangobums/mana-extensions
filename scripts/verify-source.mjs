@@ -16,6 +16,11 @@
  * read-only tracker calls. Signed-in checks need a token: set the env var
  * the probe names in "tokenEnv" and it is seeded into SecureStore under
  * "<info.id>.access_token". Nothing that writes to the account is called.
+ *
+ * A probe may seed the stores directly with `"store"` (ObjectStore) and
+ * `"secureStore"` (SecureStore) maps, and any string in it may read an
+ * environment variable as `${NAME}` — so server URLs and keys stay out of the
+ * repository. A probe that needs an unset variable is skipped.
  */
 
 import fs from "node:fs";
@@ -47,9 +52,9 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadTarget(bundlePath, secrets = {}) {
+function loadTarget(bundlePath, secrets = {}, seed = {}) {
   const code = fs.readFileSync(bundlePath, "utf-8");
-  const store = new ManaStore(JSON.parse(process.env.MANA_STORE ?? "{}"));
+  const store = new ManaStore({ ...JSON.parse(process.env.MANA_STORE ?? "{}"), ...seed });
 
   const sandbox = {
     __manaHTTPBridge: createHttpBridge(),
@@ -171,8 +176,12 @@ async function verify(name, probe, verbose) {
 
   const token = probe.tokenEnv ? process.env[probe.tokenEnv] : undefined;
   const probeTarget = loadTarget(bundlePath);
-  const secrets = token ? { [`${probeTarget.info?.id}.access_token`]: token } : {};
-  const target = token ? loadTarget(bundlePath, secrets) : probeTarget;
+  const secrets = {
+    ...(probe.secureStore ?? {}),
+    ...(token ? { [`${probeTarget.info?.id}.access_token`]: token } : {}),
+  };
+  const seeded = token || probe.secureStore || probe.store;
+  const target = seeded ? loadTarget(bundlePath, secrets, probe.store ?? {}) : probeTarget;
   if (target.onEnvironmentLoaded) await target.onEnvironmentLoaded();
   const tracker = isTracker(target);
 
@@ -277,6 +286,13 @@ async function verify(name, probe, verbose) {
       return found;
     });
 
+    if (content?.cover && target.getCoverTransport) {
+      await step(results, "getCoverTransport", async () => {
+        await checkImage(target, COVER, content.cover);
+        return "cover loads";
+      });
+    }
+
     if (content && target.getAdditionalInfoSectionItems) {
       for (const section of content.additionalInfo ?? []) {
         if (!section.hasMore) continue;
@@ -327,7 +343,10 @@ async function verify(name, probe, verbose) {
         for (const page of data.pages) {
           assert(page.url || page.raw, "page has neither url nor raw");
         }
-        return `${data.pages.length} pages`;
+        if (target.getPageTransport && data.pages[0]?.url) {
+          await checkImage(target, PAGE, data.pages[0].url);
+        }
+        return `${data.pages.length} pages${target.getPageTransport ? ", first page loads" : ""}`;
       });
     }
   }
@@ -467,10 +486,48 @@ function report(name, results) {
   return counts;
 }
 
+// The symbol @mana-app/types' HttpClient dispatches image loads under, as the app does.
+const IMAGE_DISPATCH = Symbol.for("mana.http.image.v1");
+const COVER = 1;
+const PAGE = 2;
+
+/** Loads an image the way the app does: through the source's transport, as an image request. */
+async function checkImage(target, origin, url) {
+  const request = { url, origin };
+  const client =
+    origin === COVER ? target.getCoverTransport(request) : target.getPageTransport(request);
+  assert(client && typeof client[IMAGE_DISPATCH] === "function", "transport is not an HttpClient");
+  const response = await client[IMAGE_DISPATCH](request);
+  try {
+    assert(response.status === 200, `${url} returned HTTP ${response.status} through the transport`);
+    const type = response.headers.get("content-type") ?? "";
+    assert(type.startsWith("image/"), `${url} returned ${type || "no content type"}, not an image`);
+  } finally {
+    response.releaseNative?.();
+  }
+}
+
+function expandEnv(value, missing) {
+  if (typeof value === "string") {
+    return value.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name) => {
+      if (process.env[name] === undefined) missing.add(name);
+      return process.env[name] ?? "";
+    });
+  }
+  if (Array.isArray(value)) return value.map((entry) => expandEnv(entry, missing));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, expandEnv(v, missing)]));
+  }
+  return value;
+}
+
 function loadProbe(name, override) {
   const probePath = override ?? path.join(ROOT, "scripts", "probes", `${name}.json`);
   if (!fs.existsSync(probePath)) return {};
-  return JSON.parse(fs.readFileSync(probePath, "utf-8"));
+  const missing = new Set();
+  const probe = expandEnv(JSON.parse(fs.readFileSync(probePath, "utf-8")), missing);
+  if (missing.size > 0) probe.missingEnv = [...missing];
+  return probe;
 }
 
 function sourceDirs() {
@@ -493,6 +550,15 @@ async function main() {
 
   for (const name of names) {
     const probe = loadProbe(name, args.probe);
+    if (probe.missingEnv) {
+      console.log(
+        `
+${name}
+  ${YELLOW}SKIP${RESET} set ${probe.missingEnv.join(", ")} to verify this source`,
+      );
+      totals.skip++;
+      continue;
+    }
     try {
       const { results } = await verify(name, probe, args.verbose);
       const counts = report(name, results);

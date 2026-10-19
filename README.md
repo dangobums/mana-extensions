@@ -1,4 +1,4 @@
-<img src="assets/DangoBums.jpg" width="96" height="96" alt="" align="right">
+<img src="assets/DangoBums.png" width="96" height="96" alt="" align="right">
 
 # DangoBums Sources
 

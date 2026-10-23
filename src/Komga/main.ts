@@ -92,7 +92,7 @@ import {
 const info: SourceInfo = {
   id: "komga",
   name: "Komga",
-  version: "1.0.0",
+  version: "1.0.1",
   description: "Read and sync your own Komga server",
   website: PROJECT_URL,
   rating: CatalogRating.MIXED,
@@ -441,7 +441,7 @@ class KomgaSource
             type: "text",
             key: PreferenceID.ServerUrl,
             title: "Server Address",
-            placeholder: "http://host:25600",
+            placeholder: "Server address, e.g. http://192.168.1.10:25600",
           },
         ],
       },
@@ -452,13 +452,14 @@ class KomgaSource
     return [
       {
         header: "Browsing",
-        footer: "Search and the home page only show these libraries. Leave empty for all of them.",
+        footer:
+          "Search and the home page only show these libraries. Leave empty for all of them. The list fills in once the source has connected (open its home page).",
         fields: [
           {
             type: "multiselect",
             key: PreferenceID.DefaultLibraries,
             title: "Default Libraries",
-            options: async () => (await this.libraries().catch(() => [])).map(libraryOption),
+            options: async () => (await this.cachedLibraries()).map(libraryOption),
           },
         ],
       },
@@ -473,26 +474,44 @@ class KomgaSource
       title,
       value: shown,
       secure,
-      placeholder: saved && secure ? "Saved — type to replace" : title,
+      optional: true,
+      placeholder: saved && secure ? `${title} — saved, type to replace` : title,
       ...(key === SecretID.Username ? { keyboard: "email" as const } : {}),
       didChange: async (value: string) => {
         await this.secrets.set(key, value);
         this.credentialCache = undefined;
+        await ObjectStore.remove(this.preferences.keyFor(StoreID.LastCheck));
       },
     });
   }
 
+  /**
+   * The app rebuilds this menu on every edit to find the changed field, so it must not
+   * touch the network: it shows the outcome of the last real connection instead.
+   */
   private async connectionStatus(): Promise<string> {
-    if (!(await this.serverUrl())) return "Not set up yet.";
-    const credentials = await this.credentials();
-    if (credentials.kind === "none") return "Add an API key or an email and password below.";
-    try {
-      const user = await this.me();
-      const via = credentials.kind === "api-key" ? "API key" : "email and password";
-      return `Connected as ${user.email} with ${via}.`;
-    } catch (error) {
-      return `Could not connect: ${error instanceof Error ? error.message : String(error)}`;
+    const server = await this.serverUrl();
+    if (!server) return "Not set up yet.";
+    if ((await this.credentials()).kind === "none") {
+      return "Add an API key or an email and password below.";
     }
+    const last = await readStored<LastCheck>(this.preferences.keyFor(StoreID.LastCheck));
+    if (!last || last.server !== server) {
+      return "Not checked yet: open the source's home page, then reopen these settings.";
+    }
+    return last.message;
+  }
+
+  private async recordCheck(message: string): Promise<void> {
+    const server = await this.serverUrl();
+    await ObjectStore.set(this.preferences.keyFor(StoreID.LastCheck), { server, message });
+  }
+
+  private async cachedLibraries(): Promise<Library[]> {
+    const cached = await readStored<{ server: string; libraries: Library[] }>(
+      this.preferences.keyFor(StoreID.Libraries),
+    );
+    return cached && cached.server === (await this.serverUrl()) ? cached.libraries : [];
   }
 
   private async serverUrl(): Promise<string> {
@@ -542,9 +561,14 @@ class KomgaSource
       const response = await this.http.get(`${server}/api/v2/users/me`, {
         timeoutMs: CONNECTION_TIMEOUT_MS,
       });
-      return await response.json<User>();
+      const user = await response.json<User>();
+      const via = (await this.credentials()).kind === "api-key" ? "API key" : "email and password";
+      await this.recordCheck(`Connected as ${user.email} with ${via}.`);
+      return user;
     } catch (error) {
-      throw explain(error);
+      const explained = explain(error);
+      await this.recordCheck(`Could not connect: ${explained.message}`);
+      throw explained;
     }
   }
 
@@ -595,7 +619,14 @@ class KomgaSource
   }
 
   private async libraries(): Promise<Library[]> {
-    return (await this.api<Library[]>("libraries")).filter((library) => !library.unavailable);
+    const libraries = (await this.api<Library[]>("libraries"))
+      .filter((library) => !library.unavailable)
+      .map((library) => ({ id: library.id, name: library.name }));
+    await ObjectStore.set(this.preferences.keyFor(StoreID.Libraries), {
+      server: await this.serverUrl(),
+      libraries,
+    });
+    return libraries;
   }
 
   private async books(seriesId: string): Promise<Book[]> {
@@ -645,6 +676,23 @@ class KomgaSource
       results.push(bookHighlight(book, server));
     }
     return { results, isLastPage: result.last };
+  }
+}
+
+type LastCheck = { server: string; message: string };
+
+const StoreID = {
+  LastCheck: "last-check",
+  Libraries: "library-cache",
+} as const;
+
+/** A value this source wrote itself, read back untyped (typed reads lose falsy values). */
+async function readStored<T>(key: string): Promise<T | undefined> {
+  try {
+    const value = await ObjectStore.get(key);
+    return value && typeof value === "object" ? (value as T) : undefined;
+  } catch {
+    return undefined;
   }
 }
 

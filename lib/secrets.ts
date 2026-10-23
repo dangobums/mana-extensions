@@ -15,7 +15,8 @@ export class SecretStore {
 
   async get(key: string): Promise<string> {
     try {
-      return (await SecureStore.string(this.keyFor(key))) ?? "";
+      const value = await SecureStore.get(this.keyFor(key));
+      return typeof value === "string" ? value : "";
     } catch {
       return "";
     }

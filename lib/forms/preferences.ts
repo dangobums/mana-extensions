@@ -41,31 +41,41 @@ function asStringArray(value: unknown): string[] | undefined {
   return value.every((entry) => typeof entry === "string") ? (value as string[]) : undefined;
 }
 
+/**
+ * The app's typed reads (`boolean`, `number`, `string`) answer `null` for a stored `false`,
+ * `0` or `""` as well as for a missing key, so a setting read through them falls back to its
+ * default — a toggle that defaults to on cannot be turned off. The untyped `get` returns the
+ * value as stored, so it is read first and checked here; the typed reads stay as a fallback.
+ */
 async function readValue(key: string, fallback: PreferenceValue): Promise<PreferenceValue> {
+  const raw = await attempt(() => ObjectStore.get(key));
+
   if (Array.isArray(fallback)) {
-    const native = asStringArray(await attempt(() => ObjectStore.stringArray(key)));
-    if (native) return native;
-    return asStringArray(decodeLegacy(await attempt(() => ObjectStore.string(key)))) ?? fallback;
+    const stored =
+      asStringArray(raw) ?? asStringArray(decodeLegacy(typeof raw === "string" ? raw : null));
+    if (stored) return stored;
+    return asStringArray(await attempt(() => ObjectStore.stringArray(key))) ?? fallback;
   }
 
   if (typeof fallback === "boolean") {
-    const native = await attempt(() => ObjectStore.boolean(key));
-    if (native !== null) return native;
-    const legacy = decodeLegacy(await attempt(() => ObjectStore.string(key)));
-    return typeof legacy === "boolean" ? legacy : fallback;
+    if (typeof raw === "boolean") return raw;
+    const legacy = decodeLegacy(typeof raw === "string" ? raw : null);
+    if (typeof legacy === "boolean") return legacy;
+    return (await attempt(() => ObjectStore.boolean(key))) ?? fallback;
   }
 
   if (typeof fallback === "number") {
-    const native = await attempt(() => ObjectStore.number(key));
-    if (native !== null) return native;
-    const legacy = decodeLegacy(await attempt(() => ObjectStore.string(key)));
-    return typeof legacy === "number" && Number.isFinite(legacy) ? legacy : fallback;
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    const legacy = decodeLegacy(typeof raw === "string" ? raw : null);
+    if (typeof legacy === "number" && Number.isFinite(legacy)) return legacy;
+    return (await attempt(() => ObjectStore.number(key))) ?? fallback;
   }
 
-  const native = await attempt(() => ObjectStore.string(key));
-  if (native === null) return fallback;
-  const legacy = decodeLegacy(native);
-  return typeof legacy === "string" ? legacy : native;
+  if (typeof raw === "string") {
+    const legacy = decodeLegacy(raw);
+    return typeof legacy === "string" ? legacy : raw;
+  }
+  return (await attempt(() => ObjectStore.string(key))) ?? fallback;
 }
 
 export class PreferenceStore<T extends Record<string, PreferenceValue>> {
@@ -150,11 +160,14 @@ async function buildElement(
 ): Promise<UIListElement | null> {
   switch (field.type) {
     case "text":
+      // The app draws a text field's placeholder, not its title, so the placeholder
+      // has to say what the field is.
       return UITextField({
         id,
         title: field.title,
         value: typeof current === "string" ? current : "",
-        ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
+        placeholder: field.placeholder ?? field.title,
+        optional: true,
         ...(field.secure === undefined ? {} : { secure: field.secure }),
         ...(field.keyboard === undefined ? {} : { keyboard: field.keyboard }),
         ...(field.multiline === undefined ? {} : { multiline: field.multiline }),
@@ -202,6 +215,7 @@ async function buildElement(
         title: field.title,
         options,
         value: selected,
+        optional: true,
         ...(field.minSelectionCount === undefined
           ? {}
           : { minSelectionCount: field.minSelectionCount }),

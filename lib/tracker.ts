@@ -54,11 +54,11 @@ export class TokenStore {
   }
 
   async get(): Promise<string | null> {
-    const token = await attempt(() => SecureStore.string(this.tokenKey));
-    if (!token) return null;
+    const token = await attempt(() => SecureStore.get(this.tokenKey));
+    if (typeof token !== "string" || !token) return null;
 
-    const expiresAt = await attempt(() => SecureStore.number(this.expiresKey));
-    if (expiresAt !== null && Date.now() >= expiresAt) {
+    const expiresAt = await attempt(() => SecureStore.get(this.expiresKey));
+    if (typeof expiresAt === "number" && Date.now() >= expiresAt) {
       await this.clear();
       return null;
     }

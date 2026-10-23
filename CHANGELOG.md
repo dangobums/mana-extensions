@@ -4,7 +4,17 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Komga (current: v1.0.0)
+## Komga (current: v1.0.1)
+
+### 2026-10-23 — Settings fixes
+
+- The settings screen opens instantly. Mana rebuilds it on every edit, and it
+  used to wait for the server (up to eight seconds) each time; it now shows the
+  result of the last connection and the libraries from the last time they
+  loaded.
+- Fields say what they are in the field itself ("Server address, e.g. …",
+  "API Key — saved, type to replace"), since Mana does not draw their title.
+- Settings saved as `false` or empty are read back correctly.
 
 ### 2026-10-19
 
@@ -33,6 +43,11 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
 
 ### 2026-10-23 — Settings fixes
 
+- **Toggles that default to on can be turned off again.** Mana's typed store
+  reads answer a saved `false` as "not set", so Auto-complete and Set Start and
+  Finish Dates snapped back on. Settings are now read as stored.
+- Text fields say what they are in the field itself (Mana does not draw their
+  title): "Client ID (leave empty to use 53586)", "Access token (optional)".
 - Removed the **Troubleshooting → Show Sign-in Request** setting. Left on, it
   sent every sign-in to an echo page instead of AniList; a value saved by an
   older version is now ignored.

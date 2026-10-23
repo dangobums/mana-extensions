@@ -239,7 +239,7 @@ class AniListTracker
             type: "text",
             key: PreferenceID.ClientId,
             title: "Client ID",
-            placeholder: `Default (${CLIENT_ID})`,
+            placeholder: `Client ID (leave empty to use ${CLIENT_ID})`,
             keyboard: "numeric",
           },
         ],
@@ -495,9 +495,10 @@ class AniListTracker
       id: `${info.id}.access-token-input`,
       title: "Access Token",
       placeholder: signedIn
-        ? "Signed in — paste a new token to replace"
-        : "Paste a token to sign in",
+        ? "Access token — signed in, paste a new one to replace"
+        : "Access token (optional)",
       secure: true,
+      optional: true,
       value: "",
       didChange: async (value: string) => {
         // The field reports every edit; only a whole token replaces the saved one,

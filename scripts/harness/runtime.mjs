@@ -173,30 +173,34 @@ export class ManaStore {
     this.values.delete(k);
   }
 
+  // The app's typed reads answer `null` for falsy values (false, 0, "") as well as for a
+  // missing key, and throw on a type mismatch; `get` returns the value as stored. The
+  // harness does the same, so a setting read through a typed accessor that cannot be
+  // turned off fails here too instead of only on a device.
   async string(k) {
     const value = this.values.get(k);
-    if (value === undefined) return null;
+    if (value === undefined || value === null) return null;
     if (typeof value !== "string") throw new Error(`${k} is not a string`);
-    return value;
+    return value || null;
   }
 
   async boolean(k) {
     const value = this.values.get(k);
-    if (value === undefined) return null;
+    if (value === undefined || value === null) return null;
     if (typeof value !== "boolean") throw new Error(`${k} is not a boolean`);
-    return value;
+    return value || null;
   }
 
   async number(k) {
     const value = this.values.get(k);
-    if (value === undefined) return null;
+    if (value === undefined || value === null) return null;
     if (typeof value !== "number") throw new Error(`${k} is not a number`);
-    return value;
+    return value || null;
   }
 
   async stringArray(k) {
     const value = this.values.get(k);
-    if (value === undefined) return null;
+    if (value === undefined || value === null) return null;
     if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
       throw new Error(`${k} is not a string array`);
     }

@@ -15,7 +15,6 @@ export const AUTHORIZE_URL = `${SITE_URL}/api/v2/oauth/authorize`;
 export const PIN_REDIRECT_URL = `${SITE_URL}/api/v2/oauth/pin`;
 export const REDIRECT_URL = "com.seyden.mana://oauth/anilist";
 export const CLIENT_ID = "53586";
-export const DIAGNOSTIC_URL = "https://postman-echo.com/get";
 export const DEVELOPER_URL = `${SITE_URL}/settings/developer`;
 export const MAL_URL = "https://myanimelist.net";
 
@@ -112,7 +111,6 @@ export const PreferenceID = {
   ShowAdult: "show-adult",
   AutoComplete: "auto-complete",
   AutoDates: "auto-dates",
-  SignInDiagnostics: "sign-in-diagnostics",
 } as const;
 
 export const TitleLanguage = {
@@ -128,7 +126,6 @@ export const PREFERENCE_DEFAULTS = {
   [PreferenceID.ShowAdult]: false,
   [PreferenceID.AutoComplete]: true,
   [PreferenceID.AutoDates]: true,
-  [PreferenceID.SignInDiagnostics]: false,
 };
 
 export const TITLE_LANGUAGE_OPTIONS: Option[] = [

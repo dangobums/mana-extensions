@@ -29,7 +29,20 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
   you read, and Mana picks up what was read elsewhere.
 
 
-## AniList (current: v1.1.0)
+## AniList (current: v1.1.1)
+
+### 2026-10-23 — Settings fixes
+
+- Removed the **Troubleshooting → Show Sign-in Request** setting. Left on, it
+  sent every sign-in to an echo page instead of AniList; a value saved by an
+  older version is now ignored.
+- **Show Adult Titles** now adds and removes AniList's adult tags in the search
+  filters. The tag list was cached with the setting as it was the first time.
+- An expired or revoked token no longer makes browsing fail: the tracker signs
+  out and repeats the request without it.
+- The **Access Token** field says whether you are signed in, and only a whole
+  token replaces the saved one, so a half-typed or half-pasted value cannot
+  sign you out.
 
 ### 2026-10-19 — @mana-app/types 0.1.1
 

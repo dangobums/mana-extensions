@@ -82,7 +82,6 @@ import {
   CLIENT_ID,
   DETAIL_ITEMS,
   DEVELOPER_URL,
-  DIAGNOSTIC_URL,
   EntryField,
   FORMAT_OPTIONS,
   FilterID,
@@ -145,7 +144,7 @@ import {
 const info: SourceInfo = {
   id: "anilist",
   name: "AniList",
-  version: "1.1.0",
+  version: "1.1.1",
   description: "Track manga, manhwa and light novels on AniList",
   website: SITE_URL,
   rating: CatalogRating.MIXED,
@@ -183,7 +182,7 @@ class AniListTracker
   private readonly preferences = new PreferenceStore(info.id, PREFERENCE_DEFAULTS);
   private readonly tokens = new TokenStore(info.id);
   private viewerCache: { token: string; viewer: Viewer } | undefined;
-  private tagCache: Option[] | undefined;
+  private tagCache: { option: Option; isAdult: boolean }[] | undefined;
 
   protected clientOptions(): ClientOptions {
     return {
@@ -270,26 +269,15 @@ class AniListTracker
           { type: "toggle", key: PreferenceID.AutoDates, title: "Set Start and Finish Dates" },
         ],
       },
-      {
-        header: "Troubleshooting",
-        footer:
-          `While on, signing in opens ${DIAGNOSTIC_URL} instead of AniList with the same parameters, ` +
-          "and the page shows the exact URL Mana opened. Turn it off again to sign in.",
-        fields: [
-          {
-            type: "toggle",
-            key: PreferenceID.SignInDiagnostics,
-            title: "Show Sign-in Request",
-          },
-        ],
-      },
     ];
   }
 
   async getPreferenceMenu(): Promise<Form> {
     const form = await buildPreferenceMenu(this.preferences, this.preferenceSections());
     const account = form.sections[0];
-    if (account && "children" in account) account.children.push(this.tokenField());
+    if (account && "children" in account) {
+      account.children.push(this.tokenField((await this.tokens.get()) !== null));
+    }
     return form;
   }
 
@@ -479,9 +467,8 @@ class AniListTracker
 
   async getOAuthRequestURL(): Promise<OAuthURL> {
     const clientId = (await this.preferences.get(PreferenceID.ClientId)).trim() || CLIENT_ID;
-    const diagnostics = await this.preferences.get(PreferenceID.SignInDiagnostics);
     return oauthRequest(
-      diagnostics ? DIAGNOSTIC_URL : AUTHORIZE_URL,
+      AUTHORIZE_URL,
       { client_id: clientId, response_type: "token" },
       REDIRECT_URL,
       { sendRedirectUri: false },
@@ -503,16 +490,20 @@ class AniListTracker
     this.viewerCache = undefined;
   }
 
-  private tokenField(): UIListElement {
+  private tokenField(signedIn: boolean): UIListElement {
     return UITextField({
       id: `${info.id}.access-token-input`,
       title: "Access Token",
-      placeholder: "Paste a token to sign in manually",
+      placeholder: signedIn
+        ? "Signed in — paste a new token to replace"
+        : "Paste a token to sign in",
       secure: true,
       value: "",
       didChange: async (value: string) => {
+        // The field reports every edit; only a whole token replaces the saved one,
+        // so a half-typed or half-pasted value never signs the user out.
         const token = value.trim();
-        if (!token) return;
+        if (!isAccessToken(token)) return;
         await this.tokens.save(token);
         this.viewerCache = undefined;
       },
@@ -524,11 +515,13 @@ class AniListTracker
     try {
       return await graphql<T>(this.http, API_URL, query, variables, token);
     } catch (error) {
-      if (token && isInvalidToken(error)) {
-        await this.handleUserSignOut();
+      if (!token || !isInvalidToken(error)) throw error;
+      await this.handleUserSignOut();
+      try {
+        return await graphql<T>(this.http, API_URL, query, variables, null);
+      } catch {
         throw new Error("Your AniList session has expired. Sign in again.");
       }
-      throw error;
     }
   }
 
@@ -574,14 +567,15 @@ class AniListTracker
       try {
         const { MediaTagCollection } =
           await this.query<TagCollectionResponse>(TAG_COLLECTION_QUERY);
-        this.tagCache = MediaTagCollection.filter((tag) => !tag.isAdult || allowAdult)
-          .map((tag) => ({ id: `${TAG_PREFIX}${tag.name}`, title: tag.name }))
-          .sort((a, b) => a.title.localeCompare(b.title));
+        this.tagCache = MediaTagCollection.map((tag) => ({
+          option: { id: `${TAG_PREFIX}${tag.name}`, title: tag.name },
+          isAdult: Boolean(tag.isAdult),
+        })).sort((a, b) => a.option.title.localeCompare(b.option.title));
       } catch {
         return [];
       }
     }
-    return this.tagCache;
+    return this.tagCache.filter((tag) => allowAdult || !tag.isAdult).map((tag) => tag.option);
   }
 
   private async entryOf(id: string): Promise<EntryMedia> {
@@ -637,6 +631,11 @@ class AniListTracker
 
 function mediaUrl(id: number): string {
   return `${SITE_URL}/manga/${id}`;
+}
+
+/** AniList access tokens are JWTs: three base64url segments, around a thousand characters. */
+function isAccessToken(value: string): boolean {
+  return value.length > 100 && /^[\w-]+\.[\w-]+\.[\w-]+$/.test(value);
 }
 
 function isInvalidToken(error: unknown): boolean {

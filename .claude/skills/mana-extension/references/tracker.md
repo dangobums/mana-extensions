@@ -101,12 +101,18 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
   AniList:** with `redirect_uri` in the request, sign-in in Mana failed with
   `unsupported_grant_type`; without it (`?client_id=…&response_type=token`, as in AniList's docs
   and Komikku) it works and Mana closes the sheet on `com.seyden.mana://oauth/anilist`. If a new
-  tracker's sign-in fails, the AniList **Show Sign-in Request** setting shows how to echo the exact
-  URL Mana opens. Since 0.1.0 the return type is `OAuthURL` (`BasicURL` plus a required
+  tracker's sign-in fails, temporarily point the authorize URL at an echo service
+  (`https://postman-echo.com/get`) to see the exact URL Mana opens — and never ship that as a
+  user setting: AniList 1.0.2–1.1.0 had one, and a user who left it on could not sign in. Since 0.1.0 the return type is `OAuthURL` (`BasicURL` plus a required
   `callbackScheme`: the scheme only, no `://`), so leaving it out fails typecheck instead of
   leaving the sheet open. The full redirect URL then reaches `handleOAuthCallback`. Register one path
   per tracker on the service's client (AniList uses `com.seyden.mana://oauth/anilist`) and put it
   in the extension's README and settings footer, because users register their own clients.
+- A pasted-token `UITextField` gets every edit through `didChange`. Save only a value that is a
+  whole token (AniList: a JWT, three base64url segments), or a half-typed one replaces a working
+  token. Show whether one is saved in the placeholder — the field's value stays empty.
+- When the API rejects the token, sign out and repeat read-only requests without it, so public
+  browsing keeps working; only calls that need an account should surface "sign in again".
 - Keep tokens in `SecureStore` through `TokenStore` (`lib/tracker.ts`). It stores the expiry as
   a native number, clears an expired token on read, and wraps every typed read — a `SecureStore`
   accessor throws on a type mismatch just like `ObjectStore`.

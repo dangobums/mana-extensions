@@ -136,6 +136,10 @@ PoppingMangoSources/popmango-extensions-mana's platform notes):
 - The screen does not redraw after a `didChange` or a button `action`; changes show when it is
   reopened. Errors thrown from `didChange` are only logged.
 - `optional` is `true` or omitted; mark text and multi-select fields that may be empty.
+- **Do not set `keyboard` or `multiline` on a `UITextField`.** Both are typed, no working source
+  sets them, and AniList's settings (with `keyboard: "numeric"`) were rejected by the app as
+  "not in the right format" — the whole screen, not just the field. `verify` fails a menu or
+  entry form that sets either. Treat any form option no working repo uses as unproven.
 
 **`ObjectStore`/`SecureStore` typed accessors throw on a type mismatch.** `set(k, v)` takes
 any value and stores it natively; `string()`, `boolean()`, `number()` and `stringArray()`

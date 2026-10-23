@@ -4,7 +4,7 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Komga (current: v1.0.2)
+## Komga (current: v1.0.3)
 
 ### 2026-10-23 — Settings fixes
 
@@ -15,6 +15,8 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
 - Fields say what they are in the field itself ("Server address, e.g. …",
   "API Key — saved, type to replace"), since Mana does not draw their title.
 - Settings saved as `false` or empty are read back correctly.
+- The Email field no longer asks for an email keyboard, the form option that
+  made Mana reject AniList's settings screen.
 
 ### 2026-10-19
 
@@ -39,10 +41,14 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
   you read, and Mana picks up what was read elsewhere.
 
 
-## AniList (current: v1.1.2)
+## AniList (current: v1.1.3)
 
 ### 2026-10-23 — Settings fixes
 
+- **The settings screen opens again.** Mana rejected it as not in the right
+  format: the Client ID field asked for a numeric keyboard, a form option no
+  working source uses. The option is gone, and so is the multi-line Notes
+  field in the entry editor for the same reason.
 - **Toggles that default to on can be turned off again.** Mana's typed store
   reads answer a saved `false` as "not set", so Auto-complete and Set Start and
   Finish Dates snapped back on. Settings are now read as stored.

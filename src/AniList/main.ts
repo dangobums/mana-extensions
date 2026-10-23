@@ -144,7 +144,7 @@ import {
 const info: SourceInfo = {
   id: "anilist",
   name: "AniList",
-  version: "1.1.2",
+  version: "1.1.3",
   description: "Track manga, manhwa and light novels on AniList",
   website: SITE_URL,
   rating: CatalogRating.MIXED,
@@ -240,7 +240,6 @@ class AniListTracker
             key: PreferenceID.ClientId,
             title: "Client ID",
             placeholder: `Client ID (leave empty to use ${CLIENT_ID})`,
-            keyboard: "numeric",
           },
         ],
       },
@@ -1248,7 +1247,6 @@ function entryForm(media: EntryMedia, viewer: Viewer): Form {
           UITextField({
             id: EntryField.Notes,
             title: "Notes",
-            multiline: true,
             optional: true,
             value: entry?.notes ?? "",
           }),

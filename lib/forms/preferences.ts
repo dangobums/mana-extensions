@@ -115,7 +115,9 @@ export type PreferenceField =
       title: string;
       placeholder?: string;
       secure?: boolean;
+      /** Typed, but no source known to work in the app sets it; avoid until proven. */
       keyboard?: "alphanumeric" | "numeric" | "email";
+      /** Typed, but no source known to work in the app sets it; avoid until proven. */
       multiline?: boolean;
     }
   | { type: "toggle"; key: string; title: string }

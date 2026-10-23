@@ -92,7 +92,7 @@ import {
 const info: SourceInfo = {
   id: "komga",
   name: "Komga",
-  version: "1.0.2",
+  version: "1.0.3",
   description: "Read and sync your own Komga server",
   website: PROJECT_URL,
   rating: CatalogRating.MIXED,
@@ -476,7 +476,6 @@ class KomgaSource
       secure,
       optional: true,
       placeholder: saved && secure ? `${title} — saved, type to replace` : title,
-      ...(key === SecretID.Username ? { keyboard: "email" as const } : {}),
       didChange: async (value: string) => {
         await this.secrets.set(key, value);
         this.credentialCache = undefined;

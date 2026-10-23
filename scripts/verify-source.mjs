@@ -227,7 +227,7 @@ async function verify(name, probe, verbose) {
   if (target.getPreferenceMenu) {
     await step(results, "getPreferenceMenu", async () => {
       const form = await target.getPreferenceMenu();
-      assert(form && Array.isArray(form.sections), "no sections returned");
+      checkForm(form, "getPreferenceMenu");
       return `${form.sections.length} sections`;
     });
   }
@@ -373,8 +373,18 @@ function isTracker(target) {
   );
 }
 
+// Typed in @mana-app/types but set by no source known to work in the app; a form carrying
+// one was rejected as "not in the right format" (AniList 1.1.2 settings).
+const UNPROVEN_FIELD_KEYS = ["keyboard", "multiline"];
+
 function checkForm(form, label) {
   assert(form && Array.isArray(form.sections), `${label} did not return { sections }`);
+  for (const section of form.sections) {
+    for (const child of [...(section.children ?? []), ...(section.field ? [section.field] : [])]) {
+      const unproven = UNPROVEN_FIELD_KEYS.filter((key) => child[key] !== undefined);
+      assert(unproven.length === 0, `${label}: field "${child.id}" sets ${unproven.join(", ")}`);
+    }
+  }
   const ids = form.sections.flatMap((section) => (section.children ?? []).map((child) => child.id));
   const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
   assert(duplicates.length === 0, `${label}: duplicate element ids: ${duplicates.join(", ")}`);

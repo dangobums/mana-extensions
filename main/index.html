@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DangoBums Sources</title>
+  <link rel="icon" href="assets/DangoBums.png" />
+  <link rel="apple-touch-icon" href="assets/DangoBums.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    function imgErr(el) {
+      el.outerHTML = '<svg class="w-6 h-6" stroke="#71717a" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>';
+    }
+  </script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: { sans: ["Inter","ui-sans-serif","system-ui","sans-serif"] },
+          // Dango palette: a light page in the dango's pastel pink, text in its near-black
+          // outline. "ink" runs light (950, the page) to dark (50, headings) so the class
+          // names keep their meaning; "dango" is the accent, from soft tint to deep blush.
+          colors: {
+            ink: {
+              50: "#1f1418", 100: "#2e1f24", 300: "#5a3f48", 400: "#6e5059", 500: "#8a6b75",
+              600: "#a88892", 700: "#eec5d1", 800: "#f6dbe3", 900: "#ffffff", 950: "#fff6f8",
+            },
+            dango: {
+              300: "#b23c61", 400: "#c94b70", 500: "#f4a3b8", 600: "#e06f8f", 700: "#e58aa3",
+              800: "#f0b3c4", 900: "#f8d4de", 950: "#fff0f4",
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <style>
+    body { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; background-color: #fff6f8; }
+
+    /* Ambient background: dango pink, blush and mint blobs drifting on slow, offset loops
+       over a pale pink base. Motion is on transform only, so it composites on the GPU and
+       never repaints the page. Blurring is done on the blob, not the layer. */
+    .bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+          background: linear-gradient(135deg, #fff6f8 0%, #fde8ef 100%); }
+    .bg::after { content: ""; position: absolute; inset: 0;
+          background: radial-gradient(ellipse at center, transparent 55%, rgba(255,246,248,.5) 100%); }
+    .blob { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%;
+            filter: blur(70px); opacity: .7; will-change: transform; }
+    .blob-1 { top: -30vmax; right: -20vmax;
+              background: radial-gradient(circle, rgba(244,163,184,.65), rgba(244,163,184,0) 70%);
+              animation: drift-1 16s ease-in-out infinite; }
+    .blob-2 { bottom: -35vmax; left: -25vmax;
+              background: radial-gradient(circle, rgba(178,224,206,.6), rgba(178,224,206,0) 70%);
+              animation: drift-2 20s ease-in-out infinite; }
+    .blob-3 { top: 30%; left: 35%; width: 45vmax; height: 45vmax; opacity: .5;
+              background: radial-gradient(circle, rgba(229,120,149,.4), rgba(229,120,149,0) 70%);
+              animation: drift-3 24s ease-in-out infinite; }
+    @keyframes drift-1 { 0%,100% { transform: translate(0,0) scale(1); }
+                          50%     { transform: translate(-18vw, 22vh) scale(1.15); } }
+    @keyframes drift-2 { 0%,100% { transform: translate(0,0) scale(1); }
+                          50%     { transform: translate(22vw, -20vh) scale(1.1); } }
+    @keyframes drift-3 { 0%,100% { transform: translate(0,0) scale(1); }
+                          33%     { transform: translate(-16vw, -14vh) scale(1.2); }
+                          66%     { transform: translate(14vw, 12vh) scale(.9); } }
+    @media (prefers-reduced-motion: reduce) { .blob { animation: none; } }
+    ::selection { background: #f4a3b8; color: #1f1418; }
+    .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+    .truncate { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    #copy-btn.copied { background:#b23c61; border-color:#b23c61; color:#fff; }
+  </style>
+</head>
+<body class="bg-ink-950 text-ink-50 min-h-screen antialiased pt-[4.25rem] sm:pt-[4.5rem]">
+  <div class="bg" aria-hidden="true"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
+
+  <!-- floating header -->
+  <header class="fixed inset-x-0 top-3 sm:top-4 z-20 px-3 sm:px-6">
+    <div class="max-w-5xl mx-auto h-14 px-4 sm:px-5 flex items-center justify-between gap-4 rounded-2xl border border-ink-800 bg-ink-950/80 backdrop-blur-md shadow-lg shadow-dango-900/60">
+      <div class="flex items-center gap-2.5">
+        <img src="assets/DangoBums.png" alt="" class="w-6 h-6 rounded-md object-cover shrink-0 ring-1 ring-dango-600/70" />
+        <span class="font-semibold text-sm text-ink-100">DangoBums Sources</span>
+        <span class="hidden sm:inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-dango-950/60 text-dango-300 border border-dango-900/70">
+          2 extensions
+        </span>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <span class="text-[11px] text-ink-600 hidden md:block">Built 2026-10-23 15:03 UTC</span>
+        <a href="https://github.com/dangobums/mana-extensions" target="_blank" rel="noopener" aria-label="View source on GitHub"
+           class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-ink-900 hover:bg-dango-950/40 border border-ink-800 hover:border-dango-700 text-ink-400 hover:text-ink-50 transition-colors">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58l-.01-2.05c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 016.01 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22l-.01 3.29c0 .32.22.7.83.58A12 12 0 0024 12.5C24 5.87 18.63.5 12 .5z"/></svg>
+          <span class="hidden sm:inline">GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+
+    <!-- install banner -->
+    <div class="rounded-xl border border-ink-800 bg-ink-900 p-4">
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 w-8 h-8 rounded-lg bg-dango-600/15 border border-dango-800/60 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-dango-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0 space-y-2">
+          <div>
+            <p class="text-sm font-medium text-ink-100">Add Repository to Mana</p>
+            <p class="text-xs text-ink-500 mt-0.5 flex items-center gap-1 flex-wrap">Tap Open in Mana, or copy the URL below and paste it in
+              <span class="inline-flex items-center gap-0.5 text-ink-400 font-medium">Mana
+                <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                Discover
+                <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                Repositories
+                <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                Add Repo
+              </span>
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="flex-1 min-w-0 block text-xs font-mono text-ink-300 bg-ink-950 border border-ink-800 rounded-lg px-3 py-2 truncate">https://dangobums.github.io/mana-extensions/main</code>
+            <button id="copy-btn"
+              onclick="navigator.clipboard.writeText('https://dangobums.github.io/mana-extensions/main').then(()=>{const b=document.getElementById('copy-btn');b.classList.add('copied');b.querySelector('span').textContent='Copied!';setTimeout(()=>{b.classList.remove('copied');b.querySelector('span').textContent='Copy';},2000)})"
+              class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-dango-400 hover:bg-dango-300 border border-dango-400 text-white font-semibold shadow-md shadow-dango-600/30 transition-colors">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <span>Copy</span>
+            </button>
+            <a href="mana://add-repo?url=https%3A%2F%2Fdangobums.github.io%2Fmana-extensions%2Fmain&amp;name=DangoBums%20Sources"
+              class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-ink-900 hover:bg-dango-950/40 border border-ink-800 hover:border-dango-700 text-ink-300 hover:text-ink-50 transition-colors">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              <span class="hidden sm:inline">Open in Mana</span><span class="sm:hidden">Open</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- section heading -->
+    <div class="flex items-center justify-between">
+      <h1 class="text-base font-semibold text-ink-100 border-l-2 border-dango-600 pl-3">
+        Extensions
+        <span class="ml-2 text-sm font-normal text-ink-500">2 available</span>
+      </h1>
+    </div>
+
+    <!-- cards grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+<div class="group relative flex flex-col bg-ink-900 border border-ink-800 rounded-xl overflow-hidden hover:border-dango-800 hover:shadow-lg hover:shadow-dango-950/50 transition-all duration-200">
+  <div class="flex items-start gap-3.5 p-4 pb-3">
+    <div class="w-12 h-12 rounded-lg bg-ink-800 border border-ink-700/50 flex items-center justify-center shrink-0 overflow-hidden">
+      <img src="assets/AniList.png" alt="AniList" class="w-full h-full object-cover rounded-lg" onerror="imgErr(this)" />
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h2 class="font-semibold text-sm text-ink-100 leading-tight">AniList</h2>
+        <span class="text-[10px] font-mono text-ink-500 bg-ink-800 px-1.5 py-0.5 rounded border border-ink-700">v1.1.5</span>
+      </div>
+      <p class="text-[11px] text-ink-500 mt-0.5">dangobums</p>
+    </div>
+  </div>
+
+  
+  <div class="px-4 pb-3">
+    <p class="text-xs text-ink-400 leading-relaxed line-clamp-2">Track manga, manhwa and light novels on AniList</p>
+  </div>
+
+  <div class="px-4 pb-4 flex flex-wrap items-center gap-1.5 mt-auto">
+    <span class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+      <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Mixed</span>
+    <span class="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-ink-800 text-ink-400 border border-ink-700">EN</span>
+    
+    <a href="https://anilist.co" target="_blank" rel="noopener"
+       class="ml-auto inline-flex items-center gap-1 text-[11px] text-ink-500 hover:text-dango-400 transition-colors">
+      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      Site
+    </a>
+  </div>
+</div>
+
+<div class="group relative flex flex-col bg-ink-900 border border-ink-800 rounded-xl overflow-hidden hover:border-dango-800 hover:shadow-lg hover:shadow-dango-950/50 transition-all duration-200">
+  <div class="flex items-start gap-3.5 p-4 pb-3">
+    <div class="w-12 h-12 rounded-lg bg-ink-800 border border-ink-700/50 flex items-center justify-center shrink-0 overflow-hidden">
+      <img src="assets/Komga.png" alt="Komga" class="w-full h-full object-cover rounded-lg" onerror="imgErr(this)" />
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h2 class="font-semibold text-sm text-ink-100 leading-tight">Komga</h2>
+        <span class="text-[10px] font-mono text-ink-500 bg-ink-800 px-1.5 py-0.5 rounded border border-ink-700">v1.0.4</span>
+      </div>
+      <p class="text-[11px] text-ink-500 mt-0.5">dangobums</p>
+    </div>
+  </div>
+
+  
+  <div class="px-4 pb-3">
+    <p class="text-xs text-ink-400 leading-relaxed line-clamp-2">Read and sync your own Komga server</p>
+  </div>
+
+  <div class="px-4 pb-4 flex flex-wrap items-center gap-1.5 mt-auto">
+    <span class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+      <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Mixed</span>
+    <span class="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-ink-800 text-ink-400 border border-ink-700">UNIVERSAL</span>
+    
+    <a href="https://komga.org" target="_blank" rel="noopener"
+       class="ml-auto inline-flex items-center gap-1 text-[11px] text-ink-500 hover:text-dango-400 transition-colors">
+      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      Site
+    </a>
+  </div>
+</div>
+    </div>
+
+    <!-- changelog -->
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h1 class="text-base font-semibold text-ink-100 border-l-2 border-dango-600 pl-3">Changelog</h1>
+        <a href="CHANGELOG.md" class="text-[11px] text-ink-500 hover:text-dango-400 transition-colors">View raw</a>
+      </div>
+      <div class="space-y-2.5">
+        
+<details class="group rounded-xl border border-ink-800 bg-ink-900 overflow-hidden" open>
+  <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3 hover:bg-dango-950/30 transition-colors">
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-semibold text-ink-100">Komga</span>
+      <span class="text-[10px] font-mono text-ink-500 bg-ink-800 px-1.5 py-0.5 rounded border border-ink-700">v1.0.4</span>
+    </div>
+    <svg class="w-4 h-4 text-ink-500 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </summary>
+  <div class="px-4 pb-4 space-y-4 border-t border-ink-800 pt-3">
+    
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-23 — Read lists, books, collections and author filters</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Read lists**: search them (Search For → Read Lists) or open Read Lists from the library; each opens as one title whose chapters are its books, numbered in list order and named with their series.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Books**: Search For → Books finds single books across series, each opening as a one-chapter title.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Collections**: each collection is a library link, and a search filter.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Authors**: filter by writer, penciller, inker, translator and every other role the server has, grouped under one collapsible Authors row.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Random** sort order.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Chapter title format** setting, with <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{number}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{title}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{fullTitle}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{seriesTitle}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{releaseDate}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{createdDate}</code>, <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{size}</code> and <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{sizeBytes}</code> — e.g. <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">{number} - {title} ({size})</code>. Empty keeps the title without the series name.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Translators show as the chapter's group.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Email and password sign-in sends the password once and then Komga's session token, instead of the password on every page; an expired session signs in again on its own.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">JPEG XL pages load as they are instead of being converted to PNG.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">A chapter without a release or creation date falls back to the file date.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-23 — Settings fixes</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">When signed in, Settings shows which AniList account it is. The name is remembered at sign-in so the screen opens without a request. A pasted token's expiry is read from the token. Sign out from Mana's account screen for the tracker.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">The settings screen opens instantly. Mana rebuilds it on every edit, and it used to wait for the server (up to eight seconds) each time; it now shows the result of the last connection and the libraries from the last time they loaded.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Fields say what they are in the field itself ("Server address, e.g. …", "API Key — saved, type to replace"), since Mana does not draw their title.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Settings saved as <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">false</code> or empty are read back correctly.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">The Email field no longer asks for an email keyboard, the form option that made Mana reject AniList's settings screen.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-19</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Initial implementation: a source for your own Komga server (tested against Komga 1.28.1), with any number of servers side by side.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Sign in with an API key, or an email and password from the settings or Mana's sign-in screen. Credentials are kept in the keychain and only ever sent to the configured server; the settings show the connection status.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Home page with Keep Reading, Recently Added and Recently Updated series and Latest Books; each Komga library is a library link; default libraries can be chosen in the settings.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Search across series with library, read status, series status, publisher, tag and genre filters (tags and genres can be excluded) and five sort orders.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Series pages with summary, alternate titles, genres, tags, staff and links; series linked from their metadata to AniList, MangaUpdates, Kitsu, MyAnimeList or MangaDex.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Books are chapters in number order, titles without the repeated series name; only books Komga can show as images (comics, PDFs, image EPUBs). Covers and pages load through the signed-in client.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Reading progress syncs both ways: finishing a book marks it read in Komga, marking chapters read or unread updates Komga, the current page is saved as you read, and Mana picks up what was read elsewhere.</li>
+      </ul>
+    </div>
+  </div>
+</details>
+
+<details class="group rounded-xl border border-ink-800 bg-ink-900 overflow-hidden">
+  <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3 hover:bg-dango-950/30 transition-colors">
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-semibold text-ink-100">AniList</span>
+      <span class="text-[10px] font-mono text-ink-500 bg-ink-800 px-1.5 py-0.5 rounded border border-ink-700">v1.1.5</span>
+    </div>
+    <svg class="w-4 h-4 text-ink-500 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </summary>
+  <div class="px-4 pb-4 space-y-4 border-t border-ink-800 pt-3">
+    
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-23 — Settings fixes</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**The settings screen opens again.** Mana rejected it as not in the right format: the Client ID field asked for a numeric keyboard, a form option no working source uses. The option is gone, and so is the multi-line Notes field in the entry editor for the same reason.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Toggles that default to on can be turned off again.** Mana's typed store reads answer a saved <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">false</code> as "not set", so Auto-complete and Set Start and Finish Dates snapped back on. Settings are now read as stored.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Text fields say what they are in the field itself (Mana does not draw their title): "Client ID (leave empty to use 53586)", "Access token (optional)".</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Removed the **Troubleshooting → Show Sign-in Request** setting. Left on, it sent every sign-in to an echo page instead of AniList; a value saved by an older version is now ignored.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Show Adult Titles** now adds and removes AniList's adult tags in the search filters. The tag list was cached with the setting as it was the first time.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">An expired or revoked token no longer makes browsing fail: the tracker signs out and repeats the request without it.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">The **Access Token** field says whether you are signed in, and only a whole token replaces the saved one, so a half-typed or half-pasted value cannot sign you out.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-19 — @mana-app/types 0.1.1</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Rebuilt with <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">@mana-app/types</code> 0.1.1 and <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">@mana-app/dev</code> 0.2.0. Requests go through the new <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">HttpClient</code>; GraphQL calls send <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">Body.json</code> and read the reply asynchronously, and API errors are still reported with AniList's own message.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">A rate-limited request (HTTP 429) is now retried after AniList's <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">Retry-After</code> instead of failing. The new client only retries GET by default, and every AniList call is a POST.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Sign-in returns the new <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">OAuthURL</code> type; the request itself is unchanged.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Characters, staff, relations and recommendations no longer offer "view more": Mana does not call the method that would load the rest yet.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-12 — Sign-in works</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">**Fixes AniList sign-in failing with "unsupported grant type".** The request sent <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">redirect_uri</code>, which AniList's implicit grant does not take; it now sends only <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">client_id</code> and <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">response_type</code> and AniList redirects to the client's registered URL. Mana still closes the sign-in sheet on the <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">com.seyden.mana</code> callback scheme. Confirmed working in Mana.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-12 — Sign-in diagnostics</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">New **Troubleshooting → Show Sign-in Request** setting. While it is on, signing in opens an echo page instead of AniList, showing the exact URL and parameters Mana opened, to pin down why AniList answers "unsupported grant type".</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-12 — Sign-in fix</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">AniList sign-in failed with "unsupported grant type", meaning AniList got no usable <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">response_type=token</code>/<code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">client_id</code>. The parameters were only in the request's <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">params</code>; they are now in the authorize URL itself as well, in case Mana does not forward <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">params</code>. This did not fix it on its own.</li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="text-xs font-medium text-ink-400 mb-1.5">2026-10-12</p>
+      <ul class="space-y-1">
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Initial implementation: an AniList <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">ContentTracker</code> for manga, manhwa, manhua and light novels.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Sign-in through AniList's OAuth implicit grant in Mana's web authentication sheet, using the bundled client <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">53586</code> (redirect URL <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">com.seyden.mana://oauth/anilist</code>). Your own client ID can be set in settings, or an access token pasted there instead.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Reading progress syncs as chapters are read: the first chapter moves a title to Reading, the last one marks it Completed (counting a reread when it was being reread), and empty start/finish dates are filled in. Both behaviours can be turned off.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Entry editor covering status, score in the account's own scoring format, chapter and volume progress, rereads, dates, notes, custom lists and privacy.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Discover page with five sections loaded in a single request, your AniList lists in the library, search with genre/tag include-exclude, format, status, country, year and "on my list" filters, eight sort orders, and <code class="px-1 py-0.5 rounded bg-ink-800 text-dango-300 text-[11px] font-mono">anilist.co/manga/&lt;id&gt;</code> deep links.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Search filters are checked before a search runs: a tag both included and excluded, a year out of range, or "on my list" while signed out is reported on the field instead of returning nothing.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Result tiles show format, status, chapters, volumes, score and year, plus a badge with your list status when the title is already on your AniList.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Title pages carry characters, staff, relations, recommendations, external links and the AniList/MyAnimeList ids for linking sources. Characters, staff, relations and recommendations show "view more" when there are more than ten.</li>
+        <li class="text-xs text-ink-500 leading-relaxed pl-3 relative before:content-['—'] before:absolute before:left-0 before:text-dango-800">Manhwa and manhua recommend the webtoon reader; manga recommend paged right-to-left.</li>
+      </ul>
+    </div>
+  </div>
+</details>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-ink-800 mt-12">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-ink-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+          <span class="text-xs font-medium text-ink-500">DangoBums Sources</span>
+        </div>
+        <a href="https://dangobums.github.io/mana-extensions" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 text-xs text-ink-600 hover:text-dango-400 transition-colors">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58l-.01-2.05c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 016.01 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22l-.01 3.29c0 .32.22.7.83.58A12 12 0 0024 12.5C24 5.87 18.63.5 12 .5z"/></svg>
+          GitHub Pages
+        </a>
+      </div>
+      <span class="text-xs text-ink-600">Built 2026-10-23 15:03 UTC</span>
+    </div>
+  </footer>
+
+</body>
+</html>

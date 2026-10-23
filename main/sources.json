@@ -1,0 +1,50 @@
+{
+  "repositoryName": "DangoBums Sources",
+  "thumbnail": "https://dangobums.github.io/mana-extensions/main/assets/DangoBums.png",
+  "sources": [
+    {
+      "id": "anilist",
+      "name": "AniList",
+      "version": "1.1.5",
+      "description": "Track manga, manhwa and light novels on AniList",
+      "website": "https://anilist.co",
+      "rating": 1,
+      "supportedLanguages": [
+        "en_US"
+      ],
+      "thumbnail": "AniList.png",
+      "developers": [
+        {
+          "name": "dangobums",
+          "github": "https://github.com/dangobums"
+        }
+      ],
+      "path": "AniList",
+      "environment": "tracker",
+      "intents": 4202041,
+      "hash": "31daadaa31daadaa31daadaa31daadaa31daadaa31daadaa31daadaa31daadaa"
+    },
+    {
+      "id": "komga",
+      "name": "Komga",
+      "version": "1.0.4",
+      "description": "Read and sync your own Komga server",
+      "website": "https://komga.org",
+      "rating": 1,
+      "supportedLanguages": [
+        "UNIVERSAL"
+      ],
+      "thumbnail": "Komga.png",
+      "developers": [
+        {
+          "name": "dangobums",
+          "github": "https://github.com/dangobums"
+        }
+      ],
+      "path": "Komga",
+      "environment": "source",
+      "intents": 115555577,
+      "hash": "270a34b1270a34b1270a34b1270a34b1270a34b1270a34b1270a34b1270a34b1"
+    }
+  ]
+}

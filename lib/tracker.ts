@@ -47,10 +47,12 @@ async function attempt<T>(read: () => Promise<T | null>): Promise<T | null> {
 export class TokenStore {
   private readonly tokenKey: string;
   private readonly expiresKey: string;
+  private readonly accountKey: string;
 
   constructor(namespace: string) {
     this.tokenKey = `${namespace}.access_token`;
     this.expiresKey = `${namespace}.expires_at`;
+    this.accountKey = `${namespace}.account_name`;
   }
 
   async get(): Promise<string | null> {
@@ -78,9 +80,65 @@ export class TokenStore {
     }
   }
 
+  /** When the saved token expires (epoch ms), or null when unknown. */
+  async expiresAt(): Promise<number | null> {
+    const value = await attempt(() => SecureStore.get(this.expiresKey));
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  /**
+   * The signed-in account's display name, kept beside the token so a settings menu can
+   * show it without a request (the app rebuilds that menu on every edit).
+   */
+  async account(): Promise<string | null> {
+    const value = await attempt(() => SecureStore.get(this.accountKey));
+    return typeof value === "string" && value ? value : null;
+  }
+
+  async setAccount(name: string): Promise<void> {
+    await SecureStore.set(this.accountKey, name);
+  }
+
   async clear(): Promise<void> {
     await SecureStore.remove(this.tokenKey);
     await SecureStore.remove(this.expiresKey);
+    await SecureStore.remove(this.accountKey);
+  }
+}
+
+/** Enough of a token to recognise it, never enough to use it. */
+export function maskToken(token: string): string {
+  return token.length <= 12 ? "••••" : `${token.slice(0, 6)}…${token.slice(-4)}`;
+}
+
+const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+function decodeBase64Url(value: string): string {
+  let bits = 0;
+  let buffer = 0;
+  const bytes: number[] = [];
+  for (const char of value.replace(/=+$/, "")) {
+    const index = BASE64URL.indexOf(char === "+" ? "-" : char === "/" ? "_" : char);
+    if (index < 0) throw new Error("not base64url");
+    buffer = (buffer << 6) | index;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+    }
+  }
+  return decodeURIComponent(bytes.map((byte) => `%${byte.toString(16).padStart(2, "0")}`).join(""));
+}
+
+/** Seconds until a JWT's `exp`, or undefined when it has none or is not a JWT. */
+export function jwtExpiresIn(token: string): number | undefined {
+  try {
+    const payload = JSON.parse(decodeBase64Url(token.split(".")[1] ?? "")) as { exp?: unknown };
+    if (typeof payload.exp !== "number") return undefined;
+    const seconds = Math.floor(payload.exp - Date.now() / 1000);
+    return seconds > 0 ? seconds : undefined;
+  } catch {
+    return undefined;
   }
 }
 

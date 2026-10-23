@@ -20,7 +20,7 @@ The page at <https://dangobums.github.io/mana-extensions/main> lists the extensi
 
 |                                                              | Name    | Type    | Version | Rating |
 | :----------------------------------------------------------: | ------- | ------- | ------- | ------ |
-| <img src="assets/AniList.png" width="28" height="28" alt=""> | AniList | Tracker | 1.1.3   | Mixed  |
+| <img src="assets/AniList.png" width="28" height="28" alt=""> | AniList | Tracker | 1.1.4   | Mixed  |
 |  <img src="assets/Komga.png" width="28" height="28" alt="">  | Komga   | Source  | 1.0.3   | Mixed  |
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed.

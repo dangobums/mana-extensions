@@ -11,6 +11,7 @@ import {
   UIListSection,
   UIMultiPicker,
   UIPicker,
+  UIButton,
   UIStepper,
   UITextField,
   UIToggle,
@@ -74,6 +75,8 @@ import {
   oauthRequest,
   plainText,
   retryRateLimited,
+  jwtExpiresIn,
+  maskToken,
 } from "../../lib/tracker.ts";
 import {
   ADULT_GENRES,
@@ -144,7 +147,7 @@ import {
 const info: SourceInfo = {
   id: "anilist",
   name: "AniList",
-  version: "1.1.3",
+  version: "1.1.4",
   description: "Track manga, manhwa and light novels on AniList",
   website: SITE_URL,
   rating: CatalogRating.MIXED,
@@ -275,7 +278,16 @@ class AniListTracker
     const form = await buildPreferenceMenu(this.preferences, this.preferenceSections());
     const account = form.sections[0];
     if (account && "children" in account) {
-      account.children.push(this.tokenField((await this.tokens.get()) !== null));
+      const token = await this.tokens.get();
+      if (token) {
+        const name = (await this.tokens.account()) ?? "your AniList account";
+        account.children.unshift(...(await this.signedInFields(token, name)));
+        account.footer =
+          `Signed in as ${name}. Signing out takes effect at once, but Mana does not redraw this ` +
+          "screen: close Settings and open it again to see it. " +
+          (account.footer ?? "");
+      }
+      account.children.push(this.tokenField(token !== null));
     }
     return form;
   }
@@ -487,6 +499,43 @@ class AniListTracker
     }
     await this.tokens.save(token, Number.parseInt(params["expires_in"] ?? "", 10));
     this.viewerCache = undefined;
+    await this.rememberAccount();
+  }
+
+  private async signedInFields(token: string, name: string): Promise<UIListElement[]> {
+    const expiresAt = await this.tokens.expiresAt();
+    const expiry = expiresAt ? `, expires ${new Date(expiresAt).toISOString().slice(0, 10)}` : "";
+    return [
+      UITextField({
+        id: `${info.id}.account-status`,
+        title: "Account",
+        value: `Signed in as ${name}`,
+      }),
+      UITextField({
+        id: `${info.id}.token-status`,
+        title: "Token",
+        value: `Token ${maskToken(token)}${expiry}`,
+      }),
+      UIButton({
+        id: `${info.id}.sign-out`,
+        title: `Sign Out of ${name}`,
+        isDestructive: true,
+        action: async () => {
+          await this.handleUserSignOut();
+        },
+      }),
+    ];
+  }
+
+  /** Looks the account up once after signing in, so settings can name it offline. */
+  private async rememberAccount(): Promise<void> {
+    try {
+      const viewer = await this.viewer();
+      if (viewer) await this.tokens.setAccount(viewer.name);
+    } catch {
+      // A failed lookup leaves the name unknown; the token itself is still valid or will
+      // be cleared by the next request that AniList rejects.
+    }
   }
 
   private tokenField(signedIn: boolean): UIListElement {
@@ -504,8 +553,9 @@ class AniListTracker
         // so a half-typed or half-pasted value never signs the user out.
         const token = value.trim();
         if (!isAccessToken(token)) return;
-        await this.tokens.save(token);
+        await this.tokens.save(token, jwtExpiresIn(token));
         this.viewerCache = undefined;
+        await this.rememberAccount();
       },
     });
   }
@@ -537,6 +587,7 @@ class AniListTracker
     if (this.viewerCache?.token === token) return this.viewerCache.viewer;
     const { Viewer } = await this.query<ViewerResponse>(VIEWER_QUERY);
     this.viewerCache = { token, viewer: Viewer };
+    if ((await this.tokens.account()) !== Viewer.name) await this.tokens.setAccount(Viewer.name);
     return Viewer;
   }
 

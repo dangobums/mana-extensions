@@ -121,6 +121,22 @@ from `@mana-app/types` and bundled: `HttpClient`, `Body`, `HttpMethod`, `Request
 - Rate limits are `setRateLimit(requests, intervalMs)` — milliseconds. Defaults: no limiter,
   zero retries, 30 s total deadline.
 
+**Settings forms, as the app runs them** (confirmed against Seyden/extensions-mana-generic and
+PoppingMangoSources/popmango-extensions-mana's platform notes):
+
+- The typed reads (`boolean`, `number`, `string`) answer **`null` for a stored `false`, `0` or
+  `""`**, not only for a missing key. Read settings with the untyped `get(key)` and check the
+  type — `PreferenceStore`, `SecretStore` and `TokenStore` do. The harness `ManaStore` models
+  this, so a toggle that defaults to on and cannot be turned off fails local tests too.
+- A text field draws its **placeholder, not its title**: put the field's meaning in the
+  placeholder (`buildPreferenceMenu` falls back to the title).
+- The app does not keep form values and **rebuilds the whole menu after every `didChange`** to
+  find the field. `getPreferenceMenu` must be fast and must not touch the network — show cached
+  results (Komga keeps the last connection check and library list in `ObjectStore`).
+- The screen does not redraw after a `didChange` or a button `action`; changes show when it is
+  reopened. Errors thrown from `didChange` are only logged.
+- `optional` is `true` or omitted; mark text and multi-select fields that may be empty.
+
 **`ObjectStore`/`SecureStore` typed accessors throw on a type mismatch.** `set(k, v)` takes
 any value and stores it natively; `string()`, `boolean()`, `number()` and `stringArray()`
 each throw if the stored value is not that type. Reading a preference without catching that

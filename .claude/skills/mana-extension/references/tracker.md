@@ -113,11 +113,12 @@ async handleOAuthCallback(response: string) {     // the full redirect URL
   token. Show whether one is saved in the placeholder — the field's value stays empty.
 - When the API rejects the token, sign out and repeat read-only requests without it, so public
   browsing keeps working; only calls that need an account should surface "sign in again".
-- **Show the account and a sign-out in settings.** Store the account name with
-  `tokens.setAccount(name)` whenever the viewer is fetched (sign-in, pasted token), and in
-  `getPreferenceMenu` show it, `maskToken(token)` with `tokens.expiresAt()`, and a destructive
-  `UIButton` whose `action` calls `handleUserSignOut()` — no request, since the menu is rebuilt
-  on every edit. The screen does not redraw after the button; say so in the footer.
+- **Show the account in settings.** Store the account name with `tokens.setAccount(name)`
+  whenever the viewer is fetched (sign-in, pasted token), and in `getPreferenceMenu` show it —
+  no request, since the menu is rebuilt on every edit. (`maskToken` and `tokens.expiresAt()`
+  exist for showing the token, which AniList chose not to.) A sign-out `UIButton` (destructive, `action` → `handleUserSignOut()`) also works, but
+  AniList leaves signing out to Mana's account screen; the settings screen would not redraw
+  after it anyway.
   `jwtExpiresIn(token)` reads a pasted JWT's expiry.
 - Keep tokens in `SecureStore` through `TokenStore` (`lib/tracker.ts`). It stores the expiry as
   a native number, clears an expired token on read, and wraps every typed read — a `SecureStore`

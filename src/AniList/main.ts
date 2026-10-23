@@ -11,7 +11,6 @@ import {
   UIListSection,
   UIMultiPicker,
   UIPicker,
-  UIButton,
   UIStepper,
   UITextField,
   UIToggle,
@@ -76,7 +75,6 @@ import {
   plainText,
   retryRateLimited,
   jwtExpiresIn,
-  maskToken,
 } from "../../lib/tracker.ts";
 import {
   ADULT_GENRES,
@@ -147,7 +145,7 @@ import {
 const info: SourceInfo = {
   id: "anilist",
   name: "AniList",
-  version: "1.1.4",
+  version: "1.1.5",
   description: "Track manga, manhwa and light novels on AniList",
   website: SITE_URL,
   rating: CatalogRating.MIXED,
@@ -281,11 +279,8 @@ class AniListTracker
       const token = await this.tokens.get();
       if (token) {
         const name = (await this.tokens.account()) ?? "your AniList account";
-        account.children.unshift(...(await this.signedInFields(token, name)));
-        account.footer =
-          `Signed in as ${name}. Signing out takes effect at once, but Mana does not redraw this ` +
-          "screen: close Settings and open it again to see it. " +
-          (account.footer ?? "");
+        account.children.unshift(this.accountField(name));
+        account.footer = `Signed in as ${name}. ${account.footer ?? ""}`;
       }
       account.children.push(this.tokenField(token !== null));
     }
@@ -502,29 +497,12 @@ class AniListTracker
     await this.rememberAccount();
   }
 
-  private async signedInFields(token: string, name: string): Promise<UIListElement[]> {
-    const expiresAt = await this.tokens.expiresAt();
-    const expiry = expiresAt ? `, expires ${new Date(expiresAt).toISOString().slice(0, 10)}` : "";
-    return [
-      UITextField({
-        id: `${info.id}.account-status`,
-        title: "Account",
-        value: `Signed in as ${name}`,
-      }),
-      UITextField({
-        id: `${info.id}.token-status`,
-        title: "Token",
-        value: `Token ${maskToken(token)}${expiry}`,
-      }),
-      UIButton({
-        id: `${info.id}.sign-out`,
-        title: `Sign Out of ${name}`,
-        isDestructive: true,
-        action: async () => {
-          await this.handleUserSignOut();
-        },
-      }),
-    ];
+  private accountField(name: string): UIListElement {
+    return UITextField({
+      id: `${info.id}.account-status`,
+      title: "Account",
+      value: `Signed in as ${name}`,
+    });
   }
 
   /** Looks the account up once after signing in, so settings can name it offline. */

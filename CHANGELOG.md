@@ -8,10 +8,10 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
 
 ### 2026-10-23 — Settings fixes
 
-- When signed in, Settings shows the account name, the token (shortened, with
-  its expiry date) and a **Sign Out** button. The name is remembered at sign-in
-  so the screen opens without a request; close and reopen Settings after
-  signing out to see it change. A pasted token's expiry is read from the token.
+- When signed in, Settings shows which AniList account it is. The name is
+  remembered at sign-in so the screen opens without a request. A pasted
+  token's expiry is read from the token. Sign out from Mana's account screen
+  for the tracker.
 - The settings screen opens instantly. Mana rebuilds it on every edit, and it
   used to wait for the server (up to eight seconds) each time; it now shows the
   result of the last connection and the libraries from the last time they
@@ -45,7 +45,7 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
   you read, and Mana picks up what was read elsewhere.
 
 
-## AniList (current: v1.1.4)
+## AniList (current: v1.1.5)
 
 ### 2026-10-23 — Settings fixes
 

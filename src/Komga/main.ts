@@ -92,7 +92,7 @@ import {
 const info: SourceInfo = {
   id: "komga",
   name: "Komga",
-  version: "1.0.1",
+  version: "1.0.2",
   description: "Read and sync your own Komga server",
   website: PROJECT_URL,
   rating: CatalogRating.MIXED,

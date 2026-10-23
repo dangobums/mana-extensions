@@ -4,7 +4,7 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Komga (current: v1.0.1)
+## Komga (current: v1.0.2)
 
 ### 2026-10-23 — Settings fixes
 
@@ -39,7 +39,7 @@ are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en
   you read, and Mana picks up what was read elsewhere.
 
 
-## AniList (current: v1.1.1)
+## AniList (current: v1.1.2)
 
 ### 2026-10-23 — Settings fixes
 

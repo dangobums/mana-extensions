@@ -16,6 +16,11 @@ export class FilterReader {
     this.values = (request.filters ?? {}) as Record<string, FilterPrimitives>;
   }
 
+  /** The ids of every filter the request carries. */
+  keys(): string[] {
+    return Object.keys(this.values);
+  }
+
   has(id: string): boolean {
     const value = this.values[id];
     return value !== undefined && value !== null && value !== "";

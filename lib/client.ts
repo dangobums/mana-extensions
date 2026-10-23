@@ -45,6 +45,8 @@ export type ClientOptions = {
   timeoutMs?: number;
   /** Adds credentials to every request, including cover and page images. */
   authorize?: (request: HttpRequest, context: RequestContext) => Awaitable<void>;
+  /** Sees every response first, images included — e.g. to keep a session token it returns. */
+  onResponse?: (response: HttpResponse, context: RequestContext) => Awaitable<void>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -96,6 +98,7 @@ export function buildClient(options: ClientOptions): HttpClient {
     retry,
     timeoutMs,
     authorize,
+    onResponse,
   } = options;
 
   const interceptRequest = async (
@@ -114,6 +117,7 @@ export function buildClient(options: ClientOptions): HttpClient {
     response: HttpResponse,
     context: RequestContext,
   ): Promise<HttpResponse> => {
+    await onResponse?.(response, context);
     if (context.origin !== RequestOrigin.General) return response;
     // JSON APIs answer 403 for their own reasons (bad token, private entry), so
     // only a challenge page body counts as Cloudflare there.

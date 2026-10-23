@@ -3,14 +3,15 @@ import {
   SearchSortSection,
   SearchTagsSection,
   type SearchForm,
-  type SearchListField,
+  type SearchListItem,
   type SearchOptionField,
   type SearchRequest,
   type SearchSection,
 } from "@mana-app/types";
 
 export type SearchFormSpec = {
-  fields?: readonly SearchListField[];
+  /** Fields, or `SearchGroup`s of fields shown as one collapsible row. */
+  fields?: readonly SearchListItem[];
   header?: string;
   footer?: string;
   tags?: SearchOptionField;

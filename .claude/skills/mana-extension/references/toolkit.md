@@ -213,6 +213,13 @@ clearing it), `save(token, expiresInSeconds?)`, `clear()`. The contract test see
   add them when `request.url` starts with the configured server, so they never go to another
   host. `originFor: (url) => originOf(url) ?? fallback` keeps `origin`/`referer` on that server.
 - `basicAuthorization(user, password)` builds the `Basic …` header (the runtime has no `btoa`).
+- `ClientOptions.onResponse(response, context)` sees every response first, images included.
+  Komga uses it to keep the `X-Auth-Token` session a Basic-authenticated request returns, then
+  sends the token instead of the password; a 401 on a token request drops it, and its request
+  wrapper retries once with Basic.
+- `buildSearchForm({ fields })` takes `SearchGroup`s as well as fields — a collapsible row of
+  related pickers (Komga's per-role author filters). A group needs at least one child.
+- `FilterReader.keys()` lists the filter ids a request carries, for fields named by pattern.
 - `SecretStore(namespace)` (`lib/secrets.ts`) keeps API keys and passwords in `SecureStore`;
   reads never throw. Render them as `UITextField({ secure: true })` next to the
   `buildPreferenceMenu` sections, and drop any cached credentials in `didChange`.

@@ -4,7 +4,29 @@ Notable changes to the extensions in this repository, grouped by extension —
 each one versions independently (see `info.version` in its `main.ts`). Dates
 are UTC. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Komga (current: v1.0.3)
+## Komga (current: v1.0.4)
+
+### 2026-10-23 — Read lists, books, collections and author filters
+
+- **Read lists**: search them (Search For → Read Lists) or open Read Lists from
+  the library; each opens as one title whose chapters are its books, numbered
+  in list order and named with their series.
+- **Books**: Search For → Books finds single books across series, each opening
+  as a one-chapter title.
+- **Collections**: each collection is a library link, and a search filter.
+- **Authors**: filter by writer, penciller, inker, translator and every other
+  role the server has, grouped under one collapsible Authors row.
+- **Random** sort order.
+- **Chapter title format** setting, with `{number}`, `{title}`, `{fullTitle}`,
+  `{seriesTitle}`, `{releaseDate}`, `{createdDate}`, `{size}` and `{sizeBytes}`
+  — e.g. `{number} - {title} ({size})`. Empty keeps the title without the
+  series name.
+- Translators show as the chapter's group.
+- Email and password sign-in sends the password once and then Komga's session
+  token, instead of the password on every page; an expired session signs in
+  again on its own.
+- JPEG XL pages load as they are instead of being converted to PNG.
+- A chapter without a release or creation date falls back to the file date.
 
 ### 2026-10-23 — Settings fixes
 

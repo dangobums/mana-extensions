@@ -1,4 +1,5 @@
 import {
+  SearchMenuPicker,
   SearchMultiPickerSheet,
   SearchMultiPicker,
   type JsonValue,
@@ -11,6 +12,8 @@ export const PROJECT_URL = "https://komga.org";
 export const API = "/api/v1";
 export const PAGE_SIZE = 30;
 export const CONNECTION_TIMEOUT_MS = 8_000;
+/** A Komga session is dropped after half an hour idle; renew it well before that. */
+export const SESSION_IDLE_MS = 20 * 60_000;
 
 export const SUPPORTED_IMAGE_TYPES: readonly string[] = [
   "image/jpeg",
@@ -19,6 +22,7 @@ export const SUPPORTED_IMAGE_TYPES: readonly string[] = [
   "image/webp",
   "image/avif",
   "image/heif",
+  "image/jxl",
 ];
 
 export const ListID = {
@@ -26,9 +30,15 @@ export const ListID = {
   RecentlyAdded: "recently-added",
   RecentlyUpdated: "recently-updated",
   LatestBooks: "latest-books",
+  ReadLists: "readlists",
 } as const;
 
 export const LIBRARY_PREFIX = "library:";
+export const COLLECTION_PREFIX = "collection:";
+
+/** Content ids: a bare id is a series; read lists and single books carry a prefix. */
+export const READLIST_PREFIX = "readlist:";
+export const BOOK_PREFIX = "book:";
 
 export const FilterID = {
   Library: "library",
@@ -37,7 +47,39 @@ export const FilterID = {
   Publisher: "publisher",
   Genre: "genre",
   Tag: "tag",
+  Type: "type",
+  Collection: "collection",
 } as const;
+
+/** Author filters are one field per role: `author:writer`, `author:penciller`, … */
+export const AUTHOR_FILTER_PREFIX = "author:";
+
+export const AUTHOR_ROLE_ORDER: readonly string[] = [
+  "writer",
+  "penciller",
+  "inker",
+  "colorist",
+  "letterer",
+  "cover",
+  "editor",
+  "translator",
+];
+
+export const SearchType = {
+  Series: "series",
+  ReadLists: "readlists",
+  Books: "books",
+} as const;
+
+export const TYPE_FIELD: SearchListField = SearchMenuPicker({
+  id: FilterID.Type,
+  title: "Search For",
+  options: [
+    { id: SearchType.Series, title: "Series" },
+    { id: SearchType.ReadLists, title: "Read Lists" },
+    { id: SearchType.Books, title: "Books" },
+  ],
+});
 
 export const SortID = {
   Title: "metadata.titleSort",
@@ -45,11 +87,23 @@ export const SortID = {
   Updated: "lastModified",
   Released: "booksMetadata.releaseDate",
   Books: "booksCount",
+  Random: "random",
 } as const;
+
+/** The same sorts for books, which Komga names differently. */
+export const BOOK_SORT: Record<string, string> = {
+  [SortID.Title]: "metadata.title",
+  [SortID.Added]: "createdDate",
+  [SortID.Updated]: "lastModifiedDate",
+  [SortID.Released]: "metadata.releaseDate",
+  [SortID.Books]: "metadata.numberSort",
+  [SortID.Random]: "random",
+};
 
 export const PreferenceID = {
   ServerUrl: "server-url",
   DefaultLibraries: "default-libraries",
+  ChapterTitle: "chapter-title",
 } as const;
 
 export const SecretID = {
@@ -61,7 +115,11 @@ export const SecretID = {
 export const PREFERENCE_DEFAULTS = {
   [PreferenceID.ServerUrl]: "",
   [PreferenceID.DefaultLibraries]: [] as string[],
+  [PreferenceID.ChapterTitle]: "",
 };
+
+export const CHAPTER_TITLE_TOKENS =
+  "{title}, {fullTitle}, {seriesTitle}, {number}, {releaseDate}, {createdDate}, {size}, {sizeBytes}";
 
 export const READ_STATUS_OPTIONS: Option[] = [
   { id: "UNREAD", title: "Unread" },
@@ -99,6 +157,7 @@ export const SORT_OPTIONS: SortOption[] = [
   { id: SortID.Updated, title: "Date Updated", isOrderable: true, defaultAscending: false },
   { id: SortID.Released, title: "Release Date", isOrderable: true, defaultAscending: false },
   { id: SortID.Books, title: "Book Count", isOrderable: true, defaultAscending: false },
+  { id: SortID.Random, title: "Random", isOrderable: false },
 ];
 
 export type Page<T> = {
@@ -164,6 +223,9 @@ export type Book = {
   number: number;
   created?: string;
   lastModified?: string;
+  fileLastModified?: string;
+  size?: string;
+  sizeBytes?: number;
   deleted?: boolean;
   media: {
     status: string;
@@ -178,8 +240,26 @@ export type Book = {
     numberSort: number;
     releaseDate: string | null;
     authors: Author[];
+    summary?: string;
+    tags?: string[];
   };
   readProgress?: ReadProgress | null;
+};
+
+export type ReadList = {
+  id: string;
+  name: string;
+  summary?: string;
+  ordered?: boolean;
+  bookIds: string[];
+  lastModifiedDate?: string;
+};
+
+export type Collection = {
+  id: string;
+  name: string;
+  ordered?: boolean;
+  seriesIds: string[];
 };
 
 export type BookPage = { number: number; fileName: string; mediaType: string };

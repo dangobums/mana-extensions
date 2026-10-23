@@ -21,7 +21,7 @@ The page at <https://dangobums.github.io/mana-extensions/main> lists the extensi
 |                                                              | Name    | Type    | Version | Rating |
 | :----------------------------------------------------------: | ------- | ------- | ------- | ------ |
 | <img src="assets/AniList.png" width="28" height="28" alt=""> | AniList | Tracker | 1.1.5   | Mixed  |
-|  <img src="assets/Komga.png" width="28" height="28" alt="">  | Komga   | Source  | 1.0.3   | Mixed  |
+|  <img src="assets/Komga.png" width="28" height="28" alt="">  | Komga   | Source  | 1.0.4   | Mixed  |
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
@@ -61,13 +61,14 @@ settings and enter:
    When both are set, the API key is used. The settings footer shows whether the server is
    reachable and which account is connected.
 
+Search can look for series, read lists or single books, filtered by library, collection, read
+status, series status, publisher, tags, genres and authors (per role). Read lists open as one
+title with their books as chapters. The chapter title format can be changed in Settings.
+
 Add the source more than once to use several servers. Reading in Mana marks books read in
 Komga and keeps the page you stopped at; progress made in Komga's web reader or other apps
 shows up in Mana. Series whose metadata links to AniList, MangaUpdates, Kitsu, MyAnimeList or
 MangaDex are linked to those trackers automatically.
-
-The Komga source follows the behaviour of the [Keiyoushi Komga extension](https://github.com/keiyoushi/extensions-source/tree/main/src/all/komga)
-(Apache-2.0) for Mihon, reimplemented in TypeScript for Mana.
 
 ## Development
 

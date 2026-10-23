@@ -8,6 +8,7 @@ import {
   PublicationStatus,
   ReadingMode,
   SearchExcludableMultiPickerSheet,
+  SearchGroup,
   SectionStyle,
   UIListSection,
   UITextField,
@@ -27,6 +28,7 @@ import {
   type Highlight,
   type HttpClient,
   type HttpRequest,
+  type HttpResponse,
   type JsonValue,
   type Option,
   type PageLinkLabel,
@@ -38,6 +40,7 @@ import {
   type QueryParams,
   type SearchForm,
   type SearchListField,
+  type SearchListItem,
   type SearchProvider,
   type SearchRequest,
   type SortOption,
@@ -66,7 +69,17 @@ import { BaseSource } from "../../lib/source.ts";
 import { plainText } from "../../lib/tracker.ts";
 import {
   API,
+  AUTHOR_FILTER_PREFIX,
+  AUTHOR_ROLE_ORDER,
+  BOOK_PREFIX,
+  BOOK_SORT,
+  CHAPTER_TITLE_TOKENS,
+  COLLECTION_PREFIX,
   CONNECTION_TIMEOUT_MS,
+  READLIST_PREFIX,
+  SESSION_IDLE_MS,
+  SearchType,
+  TYPE_FIELD,
   FilterID,
   LIBRARY_PREFIX,
   ListID,
@@ -80,9 +93,12 @@ import {
   SecretID,
   SortID,
   optionSheet,
+  type Author,
   type Book,
   type BookPage,
+  type Collection,
   type Library,
+  type ReadList,
   type Page,
   type SearchCondition,
   type Series,
@@ -92,7 +108,7 @@ import {
 const info: SourceInfo = {
   id: "komga",
   name: "Komga",
-  version: "1.0.3",
+  version: "1.0.4",
   description: "Read and sync your own Komga server",
   website: PROJECT_URL,
   rating: CatalogRating.MIXED,
@@ -132,6 +148,8 @@ class KomgaSource
   private readonly preferences = new PreferenceStore(info.id, PREFERENCE_DEFAULTS);
   private readonly secrets = new SecretStore(info.id);
   private credentialCache: Credentials | undefined;
+  /** The session Komga hands back for email and password, so the password is sent once. */
+  private session: { key: string; token: string; usedAt: number } | undefined;
 
   protected clientOptions(): ClientOptions {
     return {
@@ -142,6 +160,7 @@ class KomgaSource
       retry: 2,
       originFor: (url) => originOf(url) ?? PROJECT_URL,
       authorize: (request) => this.authorize(request),
+      onResponse: (response) => this.keepSession(response),
     };
   }
 
@@ -207,19 +226,34 @@ class KomgaSource
   }
 
   async getSearchForm(): Promise<SearchForm> {
-    const fields: SearchListField[] = [];
+    const fields: SearchListItem[] = [TYPE_FIELD];
     let genres: Option[] = [];
     if (await this.isConfigured()) {
-      const [libraries, publishers, tags, genreNames] = await Promise.all([
+      const [libraries, publishers, tags, genreNames, collections, authors] = await Promise.all([
         this.libraries().catch(() => []),
         this.api<string[]>("publishers").catch(() => []),
         this.api<string[]>("tags/series").catch(() => []),
         this.api<string[]>("genres").catch(() => []),
+        this.collections().catch(() => []),
+        this.api<Author[]>("authors").catch(() => []),
       ]);
       if (libraries.length > 1) {
         fields.push(optionSheet(FilterID.Library, "Libraries", libraries.map(libraryOption)));
       }
+      if (collections.length > 0) {
+        fields.push(
+          optionSheet(
+            FilterID.Collection,
+            "Collections",
+            collections.map((collection) => ({ id: collection.id, title: collection.name })),
+          ),
+        );
+      }
       fields.push(...STATIC_FIELDS);
+      const authorPickers = authorFields(authors);
+      if (authorPickers.length > 0) {
+        fields.push(SearchGroup({ id: "authors", title: "Authors", children: authorPickers }));
+      }
       if (publishers.length > 0) {
         fields.push(optionSheet(FilterID.Publisher, "Publisher", publishers.map(nameOption)));
       }
@@ -262,6 +296,10 @@ class KomgaSource
     if (list) return list;
 
     const filters = new FilterReader(request);
+    if (request.listId === ListID.ReadLists) return this.readLists(request);
+    const type = filters.option(FilterID.Type, SearchType.Series);
+    if (type === SearchType.ReadLists) return this.readLists(request);
+
     const libraryId = request.listId?.startsWith(LIBRARY_PREFIX)
       ? request.listId.slice(LIBRARY_PREFIX.length)
       : undefined;
@@ -270,12 +308,17 @@ class KomgaSource
       : filters.options(FilterID.Library).length > 0
         ? filters.options(FilterID.Library)
         : await this.preferences.get(PreferenceID.DefaultLibraries);
+    if (type === SearchType.Books) return this.searchBooks(request, filters, libraries);
 
+    const collectionIds = request.listId?.startsWith(COLLECTION_PREFIX)
+      ? [request.listId.slice(COLLECTION_PREFIX.length)]
+      : filters.options(FilterID.Collection);
     const genres = filters.excludable(FilterID.Genre);
     const tags = filters.excludable(FilterID.Tag);
     const conditions: SearchCondition[] = [
       { deleted: { operator: "isFalse" } },
       anyOf("libraryId", libraries),
+      anyOf("collectionId", collectionIds),
       anyOf("readStatus", filters.options(FilterID.ReadStatus)),
       anyOf("seriesStatus", filters.options(FilterID.SeriesStatus)),
       anyOf("publisher", filters.options(FilterID.Publisher)),
@@ -283,6 +326,7 @@ class KomgaSource
       ...genres.excluded.map((value) => isNot("genre", value)),
       ...tags.included.map((value) => is("tag", value)),
       ...tags.excluded.map((value) => isNot("tag", value)),
+      ...authorConditions(filters),
     ].filter((condition): condition is SearchCondition => condition !== undefined);
 
     const query = request.query?.trim() ?? "";
@@ -300,17 +344,46 @@ class KomgaSource
   }
 
   async getContent(contentId: string): Promise<Content> {
-    const series = await this.api<Series>(`series/${encodeURIComponent(contentId)}`);
-    return parseSeries(series, await this.server());
+    const server = await this.server();
+    const target = parseContentId(contentId);
+    if (target.kind === "readlist") {
+      return parseReadList(await this.api<ReadList>(`readlists/${target.path}`), server);
+    }
+    if (target.kind === "book") {
+      return parseBook(await this.api<Book>(`books/${target.path}`), server);
+    }
+    return parseSeries(await this.api<Series>(`series/${target.path}`), server);
   }
 
   async getChapters(contentId: string): Promise<Chapter[]> {
-    const [series, books] = await Promise.all([
-      this.api<Series>(`series/${encodeURIComponent(contentId)}`),
-      this.books(contentId),
-    ]);
     const server = await this.server();
-    return books.map((book, index) => toChapter(book, index, series, server));
+    const template = await this.preferences.get(PreferenceID.ChapterTitle);
+    const target = parseContentId(contentId);
+    const books = await this.contentBooks(contentId);
+    if (target.kind === "readlist") {
+      return books.map((book, index) =>
+        toChapter(book, index, {
+          server,
+          template,
+          seriesTitle: book.seriesTitle,
+          language: DefinedLanguages.UNIVERSAL,
+          inReadList: true,
+        }),
+      );
+    }
+    const seriesId = target.kind === "series" ? target.id : books[0]?.seriesId;
+    const series = seriesId
+      ? await this.api<Series>(`series/${encodeURIComponent(seriesId)}`)
+      : undefined;
+    return books.map((book, index) =>
+      toChapter(book, index, {
+        server,
+        template,
+        seriesTitle: series ? series.metadata.title || series.name : book.seriesTitle,
+        language: languageOf(series?.metadata.language ?? ""),
+        inReadList: false,
+      }),
+    );
   }
 
   async getChapterData(_contentId: string, chapterId: string): Promise<ChapterData> {
@@ -328,7 +401,7 @@ class KomgaSource
   }
 
   async getProgressState(contentId: string): Promise<ContentProgressState> {
-    const books = await this.books(contentId);
+    const books = await this.contentBooks(contentId);
     const readChapterIds = books
       .filter((book) => book.readProgress?.completed)
       .map((book) => book.id);
@@ -376,16 +449,38 @@ class KomgaSource
 
   async getLibraryPageLinks(): Promise<PageLinkLabel[]> {
     if (!(await this.isConfigured())) return [];
-    const libraries = await this.libraries().catch(() => []);
-    return libraries.map((library) => ({
-      title: library.name,
-      link: { request: { page: 1, listId: `${LIBRARY_PREFIX}${library.id}` } },
-    }));
+    const [libraries, collections, readLists] = await Promise.all([
+      this.libraries().catch(() => []),
+      this.collections().catch(() => []),
+      this.api<Page<ReadList>>("readlists", { size: 1 }).catch(() => undefined),
+    ]);
+    return [
+      ...libraries.map((library) => ({
+        title: library.name,
+        link: { request: { page: 1, listId: `${LIBRARY_PREFIX}${library.id}` } },
+      })),
+      ...collections.map((collection) => ({
+        title: collection.name,
+        subtitle: "Collection",
+        link: { request: { page: 1, listId: `${COLLECTION_PREFIX}${collection.id}` } },
+      })),
+      ...(readLists && readLists.totalElements > 0
+        ? [{ title: "Read Lists", link: { request: { page: 1, listId: ListID.ReadLists } } }]
+        : []),
+    ];
   }
 
   async handleURL(url: string): Promise<DeepLinkContext | null> {
     const server = await this.server().catch(() => "");
     if (!server || !url.startsWith(server)) return null;
+    const readList = /\/readlists?\/([A-Za-z0-9]+)/.exec(url)?.[1];
+    if (readList) {
+      return {
+        content: readListHighlight(await this.api<ReadList>(`readlists/${readList}`), server),
+      };
+    }
+    const book = /\/book\/([A-Za-z0-9]+)/.exec(url)?.[1];
+    if (book) return { content: bookItemHighlight(await this.api<Book>(`books/${book}`), server) };
     const id = /\/series\/([A-Za-z0-9]+)/.exec(url)?.[1];
     if (!id) return null;
     const series = await this.api<Series>(`series/${id}`);
@@ -429,6 +524,7 @@ class KomgaSource
   async handleUserSignOut(): Promise<void> {
     await this.secrets.clear(SecretID.ApiKey, SecretID.Username, SecretID.Password);
     this.credentialCache = undefined;
+    this.session = undefined;
   }
 
   private serverSections(status: string): PreferenceSection[] {
@@ -460,6 +556,18 @@ class KomgaSource
             key: PreferenceID.DefaultLibraries,
             title: "Default Libraries",
             options: async () => (await this.cachedLibraries()).map(libraryOption),
+          },
+        ],
+      },
+      {
+        header: "Chapter Titles",
+        footer: `Leave empty for the book's title without the series name. Otherwise a pattern using ${CHAPTER_TITLE_TOKENS}, e.g. "{number} - {title} ({size})". Read lists always start with the series title.`,
+        fields: [
+          {
+            type: "text",
+            key: PreferenceID.ChapterTitle,
+            title: "Chapter Title Format",
+            placeholder: "Chapter title format, e.g. {number} - {title}",
           },
         ],
       },
@@ -547,10 +655,52 @@ class KomgaSource
     const credentials = await this.credentials();
     if (credentials.kind === "api-key") request.headers.set("x-api-key", credentials.apiKey);
     if (credentials.kind === "password") {
-      request.headers.set(
-        "authorization",
-        basicAuthorization(credentials.username, credentials.password),
-      );
+      const key = sessionKey(credentials);
+      const session = this.session;
+      if (session && session.key === key && Date.now() - session.usedAt < SESSION_IDLE_MS) {
+        session.usedAt = Date.now();
+        request.headers.set("x-auth-token", session.token);
+      } else {
+        request.headers.set(
+          "authorization",
+          basicAuthorization(credentials.username, credentials.password),
+        );
+      }
+    }
+  }
+
+  /**
+   * Komga answers a Basic-authenticated request with an `X-Auth-Token` session. Sending that
+   * instead of the password spares the server a password hash on every page; a session it
+   * rejects is dropped so the next request signs in again.
+   */
+  private async keepSession(response: HttpResponse): Promise<void> {
+    const credentials = await this.credentials();
+    if (credentials.kind !== "password") return;
+    if (response.status === 401 && response.request.headers.get("x-auth-token")) {
+      this.session = undefined;
+      return;
+    }
+    const token = response.headers.get("x-auth-token");
+    if (token && response.request.headers.get("authorization")) {
+      this.session = { key: sessionKey(credentials), token, usedAt: Date.now() };
+    }
+  }
+
+  /** Runs a request, and once more if it failed only because its session had expired. */
+  private async send<T>(request: () => Promise<T>): Promise<T> {
+    const hadSession = this.session !== undefined;
+    try {
+      return await request();
+    } catch (error) {
+      if (hadSession && this.session === undefined && /HTTP 401/.test(String(error))) {
+        try {
+          return await request();
+        } catch (retried) {
+          throw explain(retried);
+        }
+      }
+      throw explain(error);
     }
   }
 
@@ -573,34 +723,19 @@ class KomgaSource
 
   private async api<T>(path: string, params?: QueryParams): Promise<T> {
     const server = await this.server();
-    try {
-      const response = await this.http.get(withQuery(`${server}${API}/${path}`, flatten(params)));
-      return await response.json<T>();
-    } catch (error) {
-      throw explain(error);
-    }
+    const url = withQuery(`${server}${API}/${path}`, flatten(params));
+    return this.send(async () => (await this.http.get(url)).json<T>());
   }
 
   private async post<T>(path: string, body: JsonValue, params?: QueryParams): Promise<T> {
     const server = await this.server();
-    try {
-      const response = await this.http.post(
-        withQuery(`${server}${API}/${path}`, flatten(params)),
-        Body.json(body),
-      );
-      return await response.json<T>();
-    } catch (error) {
-      throw explain(error);
-    }
+    const url = withQuery(`${server}${API}/${path}`, flatten(params));
+    return this.send(async () => (await this.http.post(url, Body.json(body))).json<T>());
   }
 
   private async patch(path: string, body: JsonValue): Promise<void> {
     const server = await this.server();
-    try {
-      await this.http.patch(`${server}${API}/${path}`, Body.json(body));
-    } catch (error) {
-      throw explain(error);
-    }
+    await this.send(() => this.http.patch(`${server}${API}/${path}`, Body.json(body)));
   }
 
   private async markBook(bookId: string, completed: boolean): Promise<void> {
@@ -610,11 +745,7 @@ class KomgaSource
       return;
     }
     const server = await this.server();
-    try {
-      await this.http.delete(`${server}${API}/${path}`);
-    } catch (error) {
-      throw explain(error);
-    }
+    await this.send(() => this.http.delete(`${server}${API}/${path}`));
   }
 
   private async libraries(): Promise<Library[]> {
@@ -639,6 +770,68 @@ class KomgaSource
       { unpaged: true, sort: "metadata.numberSort,asc" },
     );
     return page.content.filter(isReadable);
+  }
+
+  private async collections(): Promise<Collection[]> {
+    return (await this.api<Page<Collection>>("collections", { unpaged: true })).content;
+  }
+
+  /** The books a content id stands for: a series' books, a read list's, or one book. */
+  private async contentBooks(contentId: string): Promise<Book[]> {
+    const target = parseContentId(contentId);
+    if (target.kind === "readlist") {
+      const page = await this.api<Page<Book>>(`readlists/${target.path}/books`, {
+        unpaged: true,
+      });
+      return page.content.filter(isReadable);
+    }
+    if (target.kind === "book") {
+      const book = await this.api<Book>(`books/${target.path}`);
+      return isReadable(book) ? [book] : [];
+    }
+    return this.books(target.id);
+  }
+
+  private async readLists(request: SearchRequest): Promise<PagedSearchResult> {
+    const page = pageOf(request);
+    const libraries = await this.preferences.get(PreferenceID.DefaultLibraries);
+    const query = request.query?.trim() ?? "";
+    const result = await this.api<Page<ReadList>>("readlists", {
+      ...(query ? { search: query } : {}),
+      page: page - 1,
+      size: PAGE_SIZE,
+      ...(libraries.length > 0 ? { library_id: libraries.join(",") } : {}),
+    });
+    const server = await this.server();
+    return {
+      results: result.content.map((readList) => readListHighlight(readList, server)),
+      isLastPage: result.last,
+    };
+  }
+
+  private async searchBooks(
+    request: SearchRequest,
+    filters: FilterReader,
+    libraries: readonly string[],
+  ): Promise<PagedSearchResult> {
+    const conditions: SearchCondition[] = [
+      { deleted: { operator: "isFalse" } },
+      anyOf("libraryId", libraries),
+      anyOf("readStatus", filters.options(FilterID.ReadStatus)),
+      ...authorConditions(filters),
+    ].filter((condition): condition is SearchCondition => condition !== undefined);
+    const query = request.query?.trim() ?? "";
+    const page = pageOf(request);
+    const result = await this.post<Page<Book>>(
+      "books/list",
+      { condition: { allOf: conditions }, ...(query ? { fullTextSearch: query } : {}) },
+      { page: page - 1, size: PAGE_SIZE, ...bookSortParam(request, query) },
+    );
+    const server = await this.server();
+    return {
+      results: result.content.filter(isReadable).map((book) => bookItemHighlight(book, server)),
+      isLastPage: result.last,
+    };
   }
 
   private async libraryParams(): Promise<QueryParams> {
@@ -906,17 +1099,252 @@ function chapterTitle(book: Book, seriesTitle: string): string {
   return stripped.replace(/^[-–:·]\s*/, "") || title;
 }
 
-function toChapter(book: Book, index: number, series: Series, server: string): Chapter {
-  const date = Date.parse(book.metadata.releaseDate ?? book.created ?? "");
+type ChapterContext = {
+  server: string;
+  template: string;
+  seriesTitle: string;
+  language: string;
+  /** Read lists number books by position and name the series each one is from. */
+  inReadList: boolean;
+};
+
+function dayOf(raw: string | null | undefined): string {
+  const parsed = Date.parse(raw ?? "");
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : "";
+}
+
+function renderTitle(template: string, book: Book, seriesTitle: string): string {
+  const values: Record<string, string> = {
+    title: chapterTitle(book, seriesTitle),
+    fullTitle: (book.metadata.title || book.name).trim(),
+    seriesTitle,
+    number: book.metadata.number,
+    releaseDate: dayOf(book.metadata.releaseDate),
+    createdDate: dayOf(book.created),
+    size: book.size ?? "",
+    sizeBytes: book.sizeBytes === undefined ? "" : String(book.sizeBytes),
+  };
+  const rendered = template
+    .replace(/\{(\w+)\}/g, (token, name: string) => values[name] ?? token)
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return rendered || values["title"] || "";
+}
+
+function translators(book: Book): string {
+  return [
+    ...new Set(
+      book.metadata.authors
+        .filter((author) => author.role.toLowerCase() === "translator")
+        .map((author) => author.name),
+    ),
+  ].join(", ");
+}
+
+function toChapter(book: Book, index: number, context: ChapterContext): Chapter {
+  const date = Date.parse(book.metadata.releaseDate ?? book.created ?? book.fileLastModified ?? "");
+  const base = context.template.trim()
+    ? renderTitle(context.template, book, context.seriesTitle)
+    : chapterTitle(book, context.seriesTitle);
+  const title = context.inReadList ? `${book.seriesTitle} – ${base}` : base;
+  const group = translators(book);
   return {
     chapterId: book.id,
-    number: Number.isFinite(book.metadata.numberSort) ? book.metadata.numberSort : index + 1,
+    number: context.inReadList
+      ? index + 1
+      : Number.isFinite(book.metadata.numberSort)
+        ? book.metadata.numberSort
+        : index + 1,
     index,
     date: Number.isFinite(date) ? new Date(date) : new Date(0),
-    language: languageOf(series.metadata.language),
-    title: chapterTitle(book, series.metadata.title || series.name),
+    language: context.language,
+    title,
+    webUrl: `${context.server}/book/${book.id}`,
+    ...(group ? { provider: { id: group, name: group } } : {}),
+  };
+}
+
+type ContentTarget =
+  | { kind: "series"; id: string; path: string }
+  | { kind: "readlist"; id: string; path: string }
+  | { kind: "book"; id: string; path: string };
+
+function parseContentId(contentId: string): ContentTarget {
+  const [kind, prefix]: ["readlist" | "book" | "series", string] = contentId.startsWith(
+    READLIST_PREFIX,
+  )
+    ? ["readlist", READLIST_PREFIX]
+    : contentId.startsWith(BOOK_PREFIX)
+      ? ["book", BOOK_PREFIX]
+      : ["series", ""];
+  const id = contentId.slice(prefix.length);
+  return { kind, id, path: encodeURIComponent(id) };
+}
+
+function authorFields(authors: readonly Author[]): SearchListField[] {
+  const byRole = new Map<string, Set<string>>();
+  for (const author of authors) {
+    const role = author.role.toLowerCase();
+    if (!byRole.has(role)) byRole.set(role, new Set());
+    byRole.get(role)?.add(author.name);
+  }
+  const rank = (role: string) => {
+    const index = AUTHOR_ROLE_ORDER.indexOf(role);
+    return index < 0 ? AUTHOR_ROLE_ORDER.length : index;
+  };
+  return [...byRole.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([role, names]) =>
+      optionSheet(
+        `${AUTHOR_FILTER_PREFIX}${role}`,
+        `${titleCase(role)}s`,
+        [...names].sort((a, b) => a.localeCompare(b)).map(nameOption),
+      ),
+    );
+}
+
+/** Any of the picked names within a role; every role that has picks must match. */
+function authorConditions(filters: FilterReader): SearchCondition[] {
+  const conditions: SearchCondition[] = [];
+  for (const role of [...AUTHOR_ROLE_ORDER, ...extraRoles(filters)]) {
+    const names = filters.options(`${AUTHOR_FILTER_PREFIX}${role}`);
+    if (names.length === 0) continue;
+    const each = names.map((name) => ({ author: { operator: "is", value: { name, role } } }));
+    conditions.push(each.length === 1 ? (each[0] as SearchCondition) : { anyOf: each });
+  }
+  return conditions;
+}
+
+function extraRoles(filters: FilterReader): string[] {
+  return filters
+    .keys()
+    .filter((key) => key.startsWith(AUTHOR_FILTER_PREFIX))
+    .map((key) => key.slice(AUTHOR_FILTER_PREFIX.length))
+    .filter((role) => !AUTHOR_ROLE_ORDER.includes(role));
+}
+
+function bookSortParam(request: SearchRequest, query: string): QueryParams {
+  if (query && !request.sort) return {};
+  const id = resolveSortId(SORT_OPTIONS, request, SortID.Added);
+  const key = BOOK_SORT[id] ?? "createdDate";
+  if (id === SortID.Random) return { sort: key };
+  const option = SORT_OPTIONS.find((candidate) => candidate.id === id);
+  const ascending = request.sort?.ascending ?? option?.defaultAscending ?? false;
+  return { sort: `${key},${ascending ? "asc" : "desc"}` };
+}
+
+function readListThumbnail(server: string, id: string): string {
+  return `${server}${API}/readlists/${encodeURIComponent(id)}/thumbnail`;
+}
+
+function bookThumbnail(server: string, id: string): string {
+  return `${server}${API}/books/${encodeURIComponent(id)}/thumbnail`;
+}
+
+function readListHighlight(readList: ReadList, server: string): Highlight {
+  const count = readList.bookIds.length;
+  return {
+    id: `${READLIST_PREFIX}${readList.id}`,
+    title: readList.name,
+    cover: readListThumbnail(server, readList.id),
+    subtitle: `Read list · ${count} ${count === 1 ? "book" : "books"}`,
+    webUrl: `${server}/readlists/${readList.id}`,
+  };
+}
+
+function bookItemHighlight(book: Book, server: string): Highlight {
+  return {
+    id: `${BOOK_PREFIX}${book.id}`,
+    title: chapterTitle(book, book.seriesTitle),
+    cover: bookThumbnail(server, book.id),
+    subtitle: book.seriesTitle,
     webUrl: `${server}/book/${book.id}`,
   };
+}
+
+function parseReadList(readList: ReadList, server: string): Content {
+  return {
+    title: readList.name,
+    cover: readListThumbnail(server, readList.id),
+    summary: plainSummary(readList.summary ?? ""),
+    contentRating: ContentRating.SAFE,
+    webUrl: `${server}/readlists/${readList.id}`,
+    additionalInfo: [
+      additionalInfo.links.section({
+        id: "links",
+        title: "Links",
+        items: [
+          additionalInfo.links.item({
+            id: "komga",
+            title: "Open in Komga",
+            url: `${server}/readlists/${readList.id}`,
+          }),
+        ],
+      }),
+    ],
+  };
+}
+
+function parseBook(book: Book, server: string): Content {
+  const roles = new Map<string, string[]>();
+  for (const author of book.metadata.authors) {
+    const list = roles.get(author.name) ?? [];
+    if (!list.includes(author.role)) list.push(author.role);
+    roles.set(author.name, list);
+  }
+  const sections: AdditionalInfoSection[] = [];
+  if (roles.size > 0) {
+    sections.push(
+      additionalInfo.staff.section({
+        id: "staff",
+        title: "Staff",
+        hasMore: false,
+        items: [...roles.entries()].slice(0, 10).map(([name, list]) =>
+          additionalInfo.staff.item({
+            id: name,
+            title: name,
+            subtitle: list.map(titleCase).join(", "),
+          }),
+        ),
+      }),
+    );
+  }
+  sections.push(
+    additionalInfo.links.section({
+      id: "links",
+      title: "Links",
+      items: [
+        additionalInfo.links.item({
+          id: "komga",
+          title: "Open in Komga",
+          url: `${server}/book/${book.id}`,
+        }),
+        additionalInfo.links.item({
+          id: "series",
+          title: `Series: ${book.seriesTitle}`,
+          url: `${server}/series/${book.seriesId}`,
+        }),
+      ],
+    }),
+  );
+  return {
+    title: (book.metadata.title || book.name).trim(),
+    cover: bookThumbnail(server, book.id),
+    summary: plainSummary(book.metadata.summary ?? ""),
+    tags: (book.metadata.tags ?? []).map((tag) => ({
+      id: tag,
+      title: tag,
+      isNonInteractive: true,
+    })),
+    contentRating: ContentRating.SAFE,
+    webUrl: `${server}/book/${book.id}`,
+    additionalInfo: sections,
+  };
+}
+
+function sessionKey(credentials: { username: string; password: string }): string {
+  return `${credentials.username}\n${credentials.password}`;
 }
 
 function staffSection(series: Series): AdditionalInfoSection | undefined {
